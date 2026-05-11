@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Alert,
   SafeAreaView,
@@ -10,6 +10,11 @@ import {
   View,
 } from "react-native";
 
+import {
+  clearAthleteSession,
+  getAthleteSession,
+  saveAthleteSession,
+} from "../../lib/athleteSession";
 import { supabase } from "../../lib/supabase";
 
 type Position = "Striker" | "Winger" | "Midfielder" | "Defender" | "Goalkeeper";
@@ -20,7 +25,7 @@ type AthleteAccess = {
   id?: string;
   access_code: string;
   player_name: string;
-  position: string;
+  position?: string;
   status?: string;
 };
 
@@ -383,6 +388,7 @@ export default function HomeScreen() {
   const [hasChecked, setHasChecked] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isUnlocking, setIsUnlocking] = useState(false);
+  const [isCheckingSavedSession, setIsCheckingSavedSession] = useState(true);
 
   const [metrics, setMetrics] = useState<MetricState>({
     sleep: 0,
@@ -395,6 +401,21 @@ export default function HomeScreen() {
   });
 
   const playerName = activeAthlete?.player_name || "Athlete";
+
+  useEffect(() => {
+    const loadSavedAthlete = async () => {
+      const savedAthlete = await getAthleteSession();
+
+      if (savedAthlete) {
+        setActiveAthlete(savedAthlete);
+        setPosition(normalizePosition(savedAthlete.position));
+      }
+
+      setIsCheckingSavedSession(false);
+    };
+
+    loadSavedAthlete();
+  }, []);
 
   const unlockAthlete = async () => {
     const cleanCode = accessCode.trim().toUpperCase();
@@ -435,9 +456,12 @@ export default function HomeScreen() {
     setActiveAthlete(data);
     setPosition(normalizePosition(data.position));
     setHasChecked(false);
+    await saveAthleteSession(data);
   };
 
-  const logoutAthlete = () => {
+  const logoutAthlete = async () => {
+    await clearAthleteSession();
+
     setAccessCode("");
     setActiveAthlete(null);
     setHasChecked(false);
@@ -515,6 +539,16 @@ export default function HomeScreen() {
     Alert.alert("Check-In Saved", `${playerName}'s readiness was saved.`);
   };
 
+  if (isCheckingSavedSession) {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <View style={styles.loginContainer}>
+          <Text style={styles.loadingText}>Loading athlete...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   if (!activeAthlete) {
     return (
       <SafeAreaView style={styles.safe}>
@@ -523,7 +557,7 @@ export default function HomeScreen() {
             <Text style={styles.loginSmallTitle}>MOMENTUM ENGINE</Text>
             <Text style={styles.loginTitle}>Athlete Access</Text>
             <Text style={styles.loginText}>
-              Enter your athlete code to open your personal check-in and plan.
+              Enter your athlete code once. Momentum Engine will remember you.
             </Text>
 
             <TextInput
@@ -724,6 +758,13 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     padding: 20,
+  },
+
+  loadingText: {
+    color: COLORS.text,
+    fontSize: 20,
+    fontWeight: "900",
+    textAlign: "center",
   },
 
   loginCard: {
