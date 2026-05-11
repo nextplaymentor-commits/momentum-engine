@@ -44,6 +44,21 @@ type JournalEntry = {
   created_at?: string;
 };
 
+type WeeklyReport = {
+  id?: string;
+  player_name: string;
+  week_start?: string;
+  week_end?: string;
+  readiness_avg?: number;
+  soreness_avg?: number;
+  mood_avg?: number;
+  checkins_completed?: number;
+  journal_entries_completed?: number;
+  coach_summary?: string;
+  focus_area?: string;
+  created_at?: string;
+};
+
 function formatDate(dateString?: string) {
   if (!dateString) return "Saved";
 
@@ -62,6 +77,7 @@ export default function CoachScreen() {
   const [checkIns, setCheckIns] = useState<CheckIn[]>([]);
   const [coachNotes, setCoachNotes] = useState<CoachNote[]>([]);
   const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
+  const [weeklyReports, setWeeklyReports] = useState<WeeklyReport[]>([]);
 
   const [selectedAthlete, setSelectedAthlete] = useState("All");
 
@@ -73,26 +89,17 @@ export default function CoachScreen() {
   const loadDashboard = async () => {
     setLoading(true);
 
-    const [checkInsRes, notesRes, journalRes] = await Promise.all([
-      supabase
-        .from("check_ins")
-        .select("*")
-        .order("created_at", { ascending: false }),
-
-      supabase
-        .from("coach_notes")
-        .select("*")
-        .order("created_at", { ascending: false }),
-
-      supabase
-        .from("journal_entries")
-        .select("*")
-        .order("created_at", { ascending: false }),
+    const [checkInsRes, notesRes, journalRes, reportsRes] = await Promise.all([
+      supabase.from("check_ins").select("*").order("created_at", { ascending: false }),
+      supabase.from("coach_notes").select("*").order("created_at", { ascending: false }),
+      supabase.from("journal_entries").select("*").order("created_at", { ascending: false }),
+      supabase.from("weekly_reports").select("*").order("created_at", { ascending: false }),
     ]);
 
     setCheckIns(checkInsRes.data || []);
     setCoachNotes(notesRes.data || []);
     setJournalEntries(journalRes.data || []);
+    setWeeklyReports(reportsRes.data || []);
 
     setLoading(false);
   };
@@ -110,11 +117,9 @@ export default function CoachScreen() {
 
     const channel = supabase
       .channel("coach-live-dashboard")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "check_ins" },
-        () => loadDashboard()
-      )
+      .on("postgres_changes", { event: "*", schema: "public", table: "check_ins" }, () => loadDashboard())
+      .on("postgres_changes", { event: "*", schema: "public", table: "journal_entries" }, () => loadDashboard())
+      .on("postgres_changes", { event: "*", schema: "public", table: "weekly_reports" }, () => loadDashboard())
       .subscribe();
 
     return () => {
@@ -125,40 +130,35 @@ export default function CoachScreen() {
   const athleteNames = useMemo(() => {
     return [
       "All",
-      ...Array.from(
-        new Set(checkIns.map((item) => item.player_name))
-      ).sort(),
+      ...Array.from(new Set(checkIns.map((item) => item.player_name))).sort(),
     ];
   }, [checkIns]);
 
   const visibleCheckIns =
     selectedAthlete === "All"
       ? checkIns
-      : checkIns.filter(
-          (item) => item.player_name === selectedAthlete
-        );
+      : checkIns.filter((item) => item.player_name === selectedAthlete);
 
   const visibleNotes =
     selectedAthlete === "All"
       ? coachNotes
-      : coachNotes.filter(
-          (item) => item.player_name === selectedAthlete
-        );
+      : coachNotes.filter((item) => item.player_name === selectedAthlete);
 
   const visibleJournals =
     selectedAthlete === "All"
       ? journalEntries
-      : journalEntries.filter(
-          (item) => item.player_name === selectedAthlete
-        );
+      : journalEntries.filter((item) => item.player_name === selectedAthlete);
+
+  const visibleReports =
+    selectedAthlete === "All"
+      ? weeklyReports
+      : weeklyReports.filter((item) => item.player_name === selectedAthlete);
 
   const averageScore =
     visibleCheckIns.length > 0
       ? Math.round(
-          visibleCheckIns.reduce(
-            (sum, item) => sum + Number(item.score || 0),
-            0
-          ) / visibleCheckIns.length
+          visibleCheckIns.reduce((sum, item) => sum + Number(item.score || 0), 0) /
+            visibleCheckIns.length
         )
       : 0;
 
@@ -168,32 +168,31 @@ export default function CoachScreen() {
 
   const saveCoachNote = async () => {
     if (selectedAthlete === "All") {
-      Alert.alert("Select Athlete");
+      Alert.alert("Select Athlete", "Choose one athlete before saving a note.");
       return;
     }
 
     if (!noteText.trim()) {
-      Alert.alert("Add a note");
+      Alert.alert("Add a note", "Write a coach note first.");
       return;
     }
 
     const { error } = await supabase.from("coach_notes").insert([
       {
         player_name: selectedAthlete,
-        note: noteText,
-        focus_area: focusArea,
+        note: noteText.trim(),
+        focus_area: focusArea.trim(),
         is_private: true,
       },
     ]);
 
     if (error) {
-      Alert.alert(error.message);
+      Alert.alert("Save Failed", error.message);
       return;
     }
 
     setNoteText("");
     setFocusArea("");
-
     loadDashboard();
 
     Alert.alert("Coach note saved");
@@ -236,27 +235,17 @@ export default function CoachScreen() {
       <ScrollView contentContainerStyle={styles.container}>
         <Text style={styles.header}>Coach Dashboard</Text>
 
-        <TouchableOpacity
-          style={styles.refreshButton}
-          onPress={loadDashboard}
-        >
+        <TouchableOpacity style={styles.refreshButton} onPress={loadDashboard}>
           <Text style={styles.buttonText}>
             {loading ? "Refreshing..." : "Refresh"}
           </Text>
         </TouchableOpacity>
 
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={{ marginBottom: 18 }}
-        >
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 18 }}>
           {athleteNames.map((name) => (
             <TouchableOpacity
               key={name}
-              style={[
-                styles.chip,
-                selectedAthlete === name && styles.chipActive,
-              ]}
+              style={[styles.chip, selectedAthlete === name && styles.chipActive]}
               onPress={() => setSelectedAthlete(name)}
             >
               <Text
@@ -273,25 +262,61 @@ export default function CoachScreen() {
 
         <View style={styles.statsRow}>
           <View style={styles.statCard}>
-            <Text style={styles.statNumber}>
-              {visibleCheckIns.length}
-            </Text>
+            <Text style={styles.statNumber}>{visibleCheckIns.length}</Text>
             <Text style={styles.statLabel}>Check-Ins</Text>
           </View>
 
           <View style={styles.statCard}>
-            <Text style={styles.statNumber}>
-              {averageScore}
-            </Text>
+            <Text style={styles.statNumber}>{averageScore}</Text>
             <Text style={styles.statLabel}>Avg Score</Text>
           </View>
 
           <View style={styles.statCard}>
-            <Text style={styles.statNumber}>
-              {highRiskCount}
-            </Text>
+            <Text style={styles.statNumber}>{highRiskCount}</Text>
             <Text style={styles.statLabel}>High Risk</Text>
           </View>
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Weekly Reports</Text>
+
+          {visibleReports.length === 0 ? (
+            <Text style={styles.entryText}>No weekly reports saved yet.</Text>
+          ) : (
+            visibleReports.slice(0, 8).map((report) => (
+              <View key={report.id} style={styles.entry}>
+                <Text style={styles.entryTitle}>{report.player_name}</Text>
+
+                <Text style={styles.entrySub}>
+                  {report.week_start} → {report.week_end}
+                </Text>
+
+                <Text style={styles.entryText}>
+                  Readiness Avg: {report.readiness_avg || 0}
+                </Text>
+
+                <Text style={styles.entryText}>
+                  Soreness Avg: {report.soreness_avg || 0}/10 • Confidence Avg:{" "}
+                  {report.mood_avg || 0}/10
+                </Text>
+
+                <Text style={styles.entryText}>
+                  Check-ins: {report.checkins_completed || 0} • Journals:{" "}
+                  {report.journal_entries_completed || 0}
+                </Text>
+
+                <Text style={styles.entryText}>
+                  Focus Area: {report.focus_area || "None"}
+                </Text>
+
+                <Text style={styles.entryText}>
+                  {report.coach_summary || "No summary saved."}
+                </Text>
+
+                <Text style={styles.entryDate}>{formatDate(report.created_at)}</Text>
+              </View>
+            ))
+          )}
         </View>
 
         <View style={styles.card}>
@@ -314,10 +339,7 @@ export default function CoachScreen() {
             style={[styles.input, { minHeight: 100 }]}
           />
 
-          <TouchableOpacity
-            style={styles.button}
-            onPress={saveCoachNote}
-          >
+          <TouchableOpacity style={styles.button} onPress={saveCoachNote}>
             <Text style={styles.buttonText}>Save Note</Text>
           </TouchableOpacity>
         </View>
@@ -336,17 +358,12 @@ export default function CoachScreen() {
               </Text>
 
               <Text style={styles.entryText}>
-                Stress {item.stress}/10 • Soreness{" "}
-                {item.soreness}/10
+                Stress {item.stress}/10 • Soreness {item.soreness}/10
               </Text>
 
-              <Text style={styles.entryText}>
-                {item.coach_feedback}
-              </Text>
+              <Text style={styles.entryText}>{item.coach_feedback}</Text>
 
-              <Text style={styles.entryDate}>
-                {formatDate(item.created_at)}
-              </Text>
+              <Text style={styles.entryDate}>{formatDate(item.created_at)}</Text>
             </View>
           ))}
         </View>
@@ -356,24 +373,17 @@ export default function CoachScreen() {
 
           {visibleJournals.slice(0, 8).map((entry) => (
             <View key={entry.id} style={styles.entry}>
-              <Text style={styles.entryTitle}>
-                {entry.player_name}
-              </Text>
+              <Text style={styles.entryTitle}>{entry.player_name}</Text>
 
               {Object.values(entry.answers || {})
                 .slice(0, 2)
                 .map((answer, index) => (
-                  <Text
-                    key={index}
-                    style={styles.entryText}
-                  >
+                  <Text key={index} style={styles.entryText}>
                     • {answer}
                   </Text>
                 ))}
 
-              <Text style={styles.entryDate}>
-                {formatDate(entry.created_at)}
-              </Text>
+              <Text style={styles.entryDate}>{formatDate(entry.created_at)}</Text>
             </View>
           ))}
         </View>
@@ -383,24 +393,26 @@ export default function CoachScreen() {
 
           {visibleNotes.slice(0, 10).map((note) => (
             <View key={note.id} style={styles.entry}>
-              <Text style={styles.entryTitle}>
-                {note.player_name}
-              </Text>
+              <Text style={styles.entryTitle}>{note.player_name}</Text>
 
-              <Text style={styles.entrySub}>
-                {note.focus_area}
-              </Text>
+              <Text style={styles.entrySub}>{note.focus_area}</Text>
 
-              <Text style={styles.entryText}>
-                {note.note}
-              </Text>
+              <Text style={styles.entryText}>{note.note}</Text>
 
-              <Text style={styles.entryDate}>
-                {formatDate(note.created_at)}
-              </Text>
+              <Text style={styles.entryDate}>{formatDate(note.created_at)}</Text>
             </View>
           ))}
         </View>
+
+        <TouchableOpacity
+          style={styles.lockButton}
+          onPress={() => {
+            setUnlocked(false);
+            setPasscode("");
+          }}
+        >
+          <Text style={styles.lockButtonText}>Lock Coach Dashboard</Text>
+        </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   );
@@ -559,5 +571,20 @@ const styles = StyleSheet.create({
     marginTop: 6,
     fontSize: 12,
     fontWeight: "800",
+  },
+
+  lockButton: {
+    borderWidth: 1,
+    borderColor: "#fbbf24",
+    borderRadius: 18,
+    paddingVertical: 15,
+    alignItems: "center",
+    marginTop: 4,
+  },
+
+  lockButtonText: {
+    color: "#fbbf24",
+    fontSize: 16,
+    fontWeight: "900",
   },
 });
