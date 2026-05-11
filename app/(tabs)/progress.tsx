@@ -14,8 +14,10 @@ import {
 import { supabase } from "../../lib/supabase";
 
 type AthleteAccess = {
-  code: string;
-  name: string;
+  id?: string;
+  access_code: string;
+  player_name: string;
+  status?: string;
 };
 
 type CheckIn = {
@@ -38,17 +40,6 @@ type CheckIn = {
   created_at?: string;
 };
 
-const ATHLETE_ACCESS_CODES: AthleteAccess[] = [
-  { code: "NOAH2026", name: "Noah" },
-  { code: "AVY2026", name: "Avy" },
-  { code: "DREW2026", name: "Drew" },
-  { code: "JORDY2026", name: "Jordy" },
-  { code: "EMILIO2026", name: "Emilio" },
-  { code: "MAXI2026", name: "Maxi" },
-  { code: "RYAN2026", name: "Ryan" },
-  { code: "REYCOACH", name: "Rey" },
-];
-
 function formatAtlantaDate(dateString?: string) {
   if (!dateString) return "Saved Check-In";
 
@@ -69,21 +60,48 @@ export default function ProgressScreen() {
 
   const [checkIns, setCheckIns] = useState<CheckIn[]>([]);
   const [loading, setLoading] = useState(false);
+  const [unlocking, setUnlocking] = useState(false);
   const [lastSynced, setLastSynced] = useState("");
 
-  const unlockProgress = () => {
+  const playerName = activeAthlete?.player_name || "Athlete";
+
+  const unlockProgress = async () => {
     const cleanCode = accessCode.trim().toUpperCase();
 
-    const foundAthlete = ATHLETE_ACCESS_CODES.find(
-      (athlete) => athlete.code === cleanCode
-    );
+    if (!cleanCode) {
+      Alert.alert("Access Required", "Enter your athlete access code.");
+      return;
+    }
 
-    if (!foundAthlete) {
+    setUnlocking(true);
+
+    const { data, error } = await supabase
+      .from("athlete_profiles")
+      .select("id, player_name, access_code, status")
+      .eq("access_code", cleanCode)
+      .maybeSingle();
+
+    setUnlocking(false);
+
+    if (error) {
+      Alert.alert("Login Failed", error.message);
+      return;
+    }
+
+    if (!data) {
       Alert.alert("Invalid Code", "Please enter the correct athlete access code.");
       return;
     }
 
-    setActiveAthlete(foundAthlete);
+    if (data.status === "inactive") {
+      Alert.alert(
+        "Inactive Athlete",
+        "This athlete is currently inactive. Please contact Coach Rey."
+      );
+      return;
+    }
+
+    setActiveAthlete(data);
   };
 
   const lockProgress = () => {
@@ -101,7 +119,7 @@ export default function ProgressScreen() {
     const { data, error } = await supabase
       .from("check_ins")
       .select("*")
-      .eq("player_name", activeAthlete.name)
+      .eq("player_name", activeAthlete.player_name)
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -268,15 +286,21 @@ export default function ProgressScreen() {
 
             <TextInput
               value={accessCode}
-              onChangeText={setAccessCode}
+              onChangeText={(text) => setAccessCode(text.toUpperCase())}
               placeholder="Enter access code"
               placeholderTextColor="#64748b"
               autoCapitalize="characters"
               style={styles.lockInput}
             />
 
-            <TouchableOpacity style={styles.refreshButton} onPress={unlockProgress}>
-              <Text style={styles.refreshButtonText}>Open My Progress</Text>
+            <TouchableOpacity
+              style={[styles.refreshButton, unlocking && styles.disabledButton]}
+              onPress={unlockProgress}
+              disabled={unlocking}
+            >
+              <Text style={styles.refreshButtonText}>
+                {unlocking ? "Checking..." : "Open My Progress"}
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -289,7 +313,7 @@ export default function ProgressScreen() {
       <ScrollView contentContainerStyle={styles.container}>
         <View style={styles.heroCard}>
           <Text style={styles.smallTitle}>PROGRESS</Text>
-          <Text style={styles.title}>{activeAthlete.name}'s Trends</Text>
+          <Text style={styles.title}>{playerName}'s Trends</Text>
           <Text style={styles.subtitle}>
             Individual readiness, weekly trends, and smart alerts.
           </Text>
@@ -331,7 +355,7 @@ export default function ProgressScreen() {
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>{activeAthlete.name}'s Weekly Report</Text>
+          <Text style={styles.cardTitle}>{playerName}'s Weekly Report</Text>
 
           <Text style={styles.bodyText}>Total Check-Ins: {totalCheckIns}</Text>
           <Text style={styles.bodyText}>Avg Readiness: {averageReadiness}</Text>
@@ -503,6 +527,10 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     alignItems: "center",
     marginBottom: 18,
+  },
+
+  disabledButton: {
+    opacity: 0.6,
   },
 
   refreshButtonText: {
