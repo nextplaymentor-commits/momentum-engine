@@ -13,7 +13,7 @@ import {
 
 import { supabase } from "../../lib/supabase";
 
-const MAX_DAILY_QUESTIONS = 3;
+const MAX_WEEKLY_QUESTIONS = 1;
 
 type Athlete = {
   player_name: string;
@@ -25,7 +25,17 @@ type Athlete = {
   stress?: number;
   soreness?: number;
   sleep?: number;
+  readiness_label?: string;
+  risk_text?: string;
 };
+
+function getWeekStartDate() {
+  const today = new Date();
+  const day = today.getDay();
+  const diff = today.getDate() - day + (day === 0 ? -6 : 1);
+  const monday = new Date(today.setDate(diff));
+  return monday.toISOString().split("T")[0];
+}
 
 export default function ExploreScreen() {
   const [question, setQuestion] = useState("");
@@ -33,8 +43,7 @@ export default function ExploreScreen() {
   const [loading, setLoading] = useState(false);
 
   const [athletes, setAthletes] = useState<Athlete[]>([]);
-  const [selectedAthlete, setSelectedAthlete] =
-    useState<Athlete | null>(null);
+  const [selectedAthlete, setSelectedAthlete] = useState<Athlete | null>(null);
 
   const [questionsUsed, setQuestionsUsed] = useState(0);
 
@@ -55,7 +64,7 @@ export default function ExploreScreen() {
       .order("created_at", { ascending: false });
 
     if (error) {
-      console.log(error);
+      console.log("Explore athlete load error:", error.message);
       return;
     }
 
@@ -66,26 +75,32 @@ export default function ExploreScreen() {
         }
         return acc;
       }, {})
-    );
+    ) as Athlete[];
 
     setAthletes(uniqueAthletes);
 
     if (uniqueAthletes.length > 0) {
-      setSelectedAthlete(uniqueAthletes[0] as Athlete);
+      setSelectedAthlete(uniqueAthletes[0]);
     }
   };
 
   const loadUsage = async () => {
     if (!selectedAthlete) return;
 
-    const today = new Date().toISOString().split("T")[0];
+    const weekStart = getWeekStartDate();
 
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("ai_usage")
       .select("*")
       .eq("athlete_name", selectedAthlete.player_name)
-      .eq("usage_date", today)
+      .eq("usage_date", weekStart)
       .maybeSingle();
+
+    if (error) {
+      console.log("AI usage load error:", error.message);
+      setQuestionsUsed(0);
+      return;
+    }
 
     setQuestionsUsed(data?.question_count || 0);
   };
@@ -93,27 +108,37 @@ export default function ExploreScreen() {
   const incrementUsage = async () => {
     if (!selectedAthlete) return;
 
-    const today = new Date().toISOString().split("T")[0];
+    const weekStart = getWeekStartDate();
 
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("ai_usage")
       .select("*")
       .eq("athlete_name", selectedAthlete.player_name)
-      .eq("usage_date", today)
+      .eq("usage_date", weekStart)
       .maybeSingle();
 
+    if (error) {
+      console.log("AI usage check error:", error.message);
+      return;
+    }
+
     if (!data) {
-      await supabase.from("ai_usage").insert({
+      const { error: insertError } = await supabase.from("ai_usage").insert({
         athlete_name: selectedAthlete.player_name,
-        usage_date: today,
+        usage_date: weekStart,
         question_count: 1,
       });
+
+      if (insertError) {
+        console.log("AI usage insert error:", insertError.message);
+        return;
+      }
 
       setQuestionsUsed(1);
     } else {
       const newCount = data.question_count + 1;
 
-      await supabase
+      const { error: updateError } = await supabase
         .from("ai_usage")
         .update({
           question_count: newCount,
@@ -121,25 +146,30 @@ export default function ExploreScreen() {
         })
         .eq("id", data.id);
 
+      if (updateError) {
+        console.log("AI usage update error:", updateError.message);
+        return;
+      }
+
       setQuestionsUsed(newCount);
     }
   };
 
   const askCoachAI = async () => {
     if (!selectedAthlete) {
-      Alert.alert("Select an athlete first.");
+      Alert.alert("No Athlete Selected", "Submit a check-in first.");
       return;
     }
 
     if (!question.trim()) {
-      Alert.alert("Ask Coach AI a question first.");
+      Alert.alert("Ask a question first.");
       return;
     }
 
-    if (questionsUsed >= MAX_DAILY_QUESTIONS) {
+    if (questionsUsed >= MAX_WEEKLY_QUESTIONS) {
       Alert.alert(
-        "Daily AI Limit Reached",
-        "This athlete has used all 3 Coach AI questions today."
+        "Weekly AI Limit Reached",
+        "This athlete has used their 1 Coach AI question for the week."
       );
       return;
     }
@@ -156,24 +186,26 @@ export default function ExploreScreen() {
       });
 
       if (error) {
-        console.log(error);
-        setResponse(
-          "Coach AI could not respond right now. Please try again."
-        );
+        console.log("Coach AI error:", error);
+        setResponse("Coach AI could not respond right now. Please try again.");
         return;
       }
 
-      setResponse(data.answer);
+      setResponse(data?.answer || "Coach AI responded, but no answer came back.");
 
       await incrementUsage();
     } catch (err) {
-      console.log(err);
-
+      console.log("Coach AI crash:", err);
       setResponse("Something went wrong.");
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   };
+
+  const questionsRemaining = Math.max(
+    MAX_WEEKLY_QUESTIONS - questionsUsed,
+    0
+  );
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -184,40 +216,46 @@ export default function ExploreScreen() {
           <Text style={styles.title}>Coach AI</Text>
 
           <Text style={styles.subtitle}>
-            Personalized athlete mentoring powered by AI.
+            Personalized athlete mentoring powered by AI. Each athlete gets 1
+            Coach AI question per week.
           </Text>
         </View>
 
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Select Athlete</Text>
 
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            {athletes.map((athlete, index) => (
-              <TouchableOpacity
-                key={index}
-                style={[
-                  styles.athleteChip,
-                  selectedAthlete?.player_name === athlete.player_name &&
-                    styles.athleteChipActive,
-                ]}
-                onPress={() => setSelectedAthlete(athlete)}
-              >
-                <Text
+          {athletes.length === 0 ? (
+            <Text style={styles.bodyText}>
+              No athletes found yet. Submit a check-in first.
+            </Text>
+          ) : (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              {athletes.map((athlete, index) => (
+                <TouchableOpacity
+                  key={index}
                   style={[
-                    styles.athleteChipText,
+                    styles.athleteChip,
                     selectedAthlete?.player_name === athlete.player_name &&
-                      styles.athleteChipTextActive,
+                      styles.athleteChipActive,
                   ]}
+                  onPress={() => setSelectedAthlete(athlete)}
                 >
-                  {athlete.player_name}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
+                  <Text
+                    style={[
+                      styles.athleteChipText,
+                      selectedAthlete?.player_name === athlete.player_name &&
+                        styles.athleteChipTextActive,
+                    ]}
+                  >
+                    {athlete.player_name}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          )}
 
           <Text style={styles.usageText}>
-            Questions Remaining Today:{" "}
-            {MAX_DAILY_QUESTIONS - questionsUsed}
+            AI Questions Remaining This Week: {questionsRemaining}
           </Text>
         </View>
 
@@ -227,14 +265,14 @@ export default function ExploreScreen() {
           <TextInput
             value={question}
             onChangeText={setQuestion}
-            placeholder="How can I improve faster?"
+            placeholder="Example: How can I improve faster?"
             placeholderTextColor="#64748b"
             multiline
             style={styles.input}
           />
 
           <TouchableOpacity
-            style={styles.button}
+            style={[styles.button, loading && styles.buttonDisabled]}
             onPress={askCoachAI}
             disabled={loading}
           >
@@ -256,7 +294,6 @@ export default function ExploreScreen() {
           {response ? (
             <View style={styles.responseCard}>
               <Text style={styles.responseTitle}>Coach AI Response</Text>
-
               <Text style={styles.responseText}>{response}</Text>
             </View>
           ) : null}
@@ -266,34 +303,40 @@ export default function ExploreScreen() {
           <View style={styles.smartCard}>
             <Text style={styles.smartTitle}>Smart Recovery Insights</Text>
 
-            {selectedAthlete.stress &&
-            selectedAthlete.stress >= 7 ? (
+            {selectedAthlete.stress && selectedAthlete.stress >= 7 ? (
               <Text style={styles.smartText}>
                 ⚠️ Stress levels are elevated. Prioritize recovery and reduce
                 mental overload today.
               </Text>
             ) : null}
 
-            {selectedAthlete.soreness &&
-            selectedAthlete.soreness >= 7 ? (
+            {selectedAthlete.soreness && selectedAthlete.soreness >= 7 ? (
               <Text style={styles.smartText}>
                 ⚠️ Soreness is high. Focus on hydration, mobility, and lighter
                 work today.
               </Text>
             ) : null}
 
-            {selectedAthlete.confidence &&
-            selectedAthlete.confidence <= 5 ? (
+            {selectedAthlete.confidence && selectedAthlete.confidence <= 5 ? (
               <Text style={styles.smartText}>
                 ⚠️ Confidence is trending low. Keep things simple and focus on
                 small wins today.
               </Text>
             ) : null}
 
-            {selectedAthlete.sleep &&
-            selectedAthlete.sleep <= 5 ? (
+            {selectedAthlete.sleep && selectedAthlete.sleep <= 5 ? (
               <Text style={styles.smartText}>
                 ⚠️ Sleep is low. Recovery and energy may be impacted today.
+              </Text>
+            ) : null}
+
+            {(!selectedAthlete.stress || selectedAthlete.stress < 7) &&
+            (!selectedAthlete.soreness || selectedAthlete.soreness < 7) &&
+            (!selectedAthlete.confidence || selectedAthlete.confidence > 5) &&
+            (!selectedAthlete.sleep || selectedAthlete.sleep > 5) ? (
+              <Text style={styles.smartText}>
+                ✅ No major red flags from the latest check-in. Keep stacking
+                good habits.
               </Text>
             ) : null}
           </View>
@@ -360,6 +403,12 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
 
+  bodyText: {
+    color: "#dbeafe",
+    fontSize: 15,
+    lineHeight: 24,
+  },
+
   athleteChip: {
     backgroundColor: "#061322",
     borderWidth: 1,
@@ -410,6 +459,10 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     paddingVertical: 16,
     alignItems: "center",
+  },
+
+  buttonDisabled: {
+    opacity: 0.6,
   },
 
   buttonText: {
