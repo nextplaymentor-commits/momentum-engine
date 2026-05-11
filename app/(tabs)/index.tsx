@@ -16,6 +16,12 @@ type Position = "Striker" | "Winger" | "Midfielder" | "Defender" | "Goalkeeper";
 type DayType = "Training" | "Match" | "Off";
 type TrainingLoad = "None" | "Light" | "Full";
 
+type AthleteAccess = {
+  code: string;
+  name: string;
+  position: Position;
+};
+
 type MetricState = {
   sleep: number;
   energy: number;
@@ -37,6 +43,17 @@ type PlanResult = {
   recoveryPlan: string;
   mindsetPlan: string;
 };
+
+const ATHLETE_ACCESS_CODES: AthleteAccess[] = [
+  { code: "NOAH2026", name: "Noah", position: "Defender" },
+  { code: "AVY2026", name: "Avy", position: "Winger" },
+  { code: "DREW2026", name: "Drew", position: "Midfielder" },
+  { code: "JORDY2026", name: "Jordy", position: "Midfielder" },
+  { code: "EMILIO2026", name: "Emilio", position: "Midfielder" },
+  { code: "MAXI2026", name: "Maxi", position: "Winger" },
+  { code: "RYAN2026", name: "Ryan", position: "Winger" },
+  { code: "REYCOACH", name: "Rey", position: "Midfielder" },
+];
 
 function clamp(num: number, min: number, max: number) {
   return Math.max(min, Math.min(num, max));
@@ -96,11 +113,15 @@ function calculatePlan(
   const priorityActions: string[] = [];
 
   if (metrics.soreness >= 7) {
-    priorityActions.push("Soreness: Keep the load low. Mobility, hydration, and no extra impact today.");
+    priorityActions.push(
+      "Soreness: Keep the load low. Mobility, hydration, and no extra impact today."
+    );
   }
 
   if (metrics.stress >= 7) {
-    priorityActions.push("Stress: Slow the day down. Breathe, reset, and keep training simple.");
+    priorityActions.push(
+      "Stress: Slow the day down. Breathe, reset, and keep training simple."
+    );
   }
 
   if (metrics.sleep > 0 && metrics.sleep <= 6) {
@@ -108,7 +129,9 @@ function calculatePlan(
   }
 
   if (metrics.nutrition > 0 && metrics.nutrition <= 5) {
-    priorityActions.push("Nutrition: Eat a real meal today. Protein, carbs, fruit, and water.");
+    priorityActions.push(
+      "Nutrition: Eat a real meal today. Protein, carbs, fruit, and water."
+    );
   }
 
   if (metrics.confidence > 0 && metrics.confidence <= 5) {
@@ -344,7 +367,9 @@ function PlanTile({
 }
 
 export default function HomeScreen() {
-  const [playerName, setPlayerName] = useState("Rey");
+  const [accessCode, setAccessCode] = useState("");
+  const [activeAthlete, setActiveAthlete] = useState<AthleteAccess | null>(null);
+
   const [position, setPosition] = useState<Position>("Midfielder");
   const [dayType, setDayType] = useState<DayType>("Match");
   const [trainingLoad, setTrainingLoad] = useState<TrainingLoad>("Full");
@@ -361,6 +386,40 @@ export default function HomeScreen() {
     soreness: 0,
   });
 
+  const playerName = activeAthlete?.name || "Athlete";
+
+  const unlockAthlete = () => {
+    const cleanCode = accessCode.trim().toUpperCase();
+
+    const foundAthlete = ATHLETE_ACCESS_CODES.find(
+      (athlete) => athlete.code === cleanCode
+    );
+
+    if (!foundAthlete) {
+      Alert.alert("Invalid Code", "Please enter the correct athlete access code.");
+      return;
+    }
+
+    setActiveAthlete(foundAthlete);
+    setPosition(foundAthlete.position);
+    setHasChecked(false);
+  };
+
+  const logoutAthlete = () => {
+    setAccessCode("");
+    setActiveAthlete(null);
+    setHasChecked(false);
+    setMetrics({
+      sleep: 0,
+      energy: 0,
+      focus: 0,
+      nutrition: 0,
+      confidence: 0,
+      stress: 0,
+      soreness: 0,
+    });
+  };
+
   const livePlan = useMemo(() => {
     return calculatePlan(playerName, position, dayType, trainingLoad, metrics);
   }, [playerName, position, dayType, trainingLoad, metrics]);
@@ -375,6 +434,11 @@ export default function HomeScreen() {
   };
 
   const checkReadiness = async () => {
+    if (!activeAthlete) {
+      Alert.alert("Access Required", "Please enter your athlete code first.");
+      return;
+    }
+
     setHasChecked(true);
     setIsSaving(true);
 
@@ -388,7 +452,7 @@ export default function HomeScreen() {
 
     const { error } = await supabase.from("check_ins").insert([
       {
-        player_name: playerName.trim() || "Athlete",
+        player_name: playerName,
         position,
         day_type: dayType,
         training_load: trainingLoad,
@@ -416,8 +480,41 @@ export default function HomeScreen() {
       return;
     }
 
-    Alert.alert("Check-In Saved", "Your readiness data was saved successfully.");
+    Alert.alert("Check-In Saved", `${playerName}'s readiness was saved.`);
   };
+
+  if (!activeAthlete) {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <View style={styles.loginContainer}>
+          <View style={styles.loginCard}>
+            <Text style={styles.loginSmallTitle}>MOMENTUM ENGINE</Text>
+            <Text style={styles.loginTitle}>Athlete Access</Text>
+            <Text style={styles.loginText}>
+              Enter your athlete code to open your personal check-in and plan.
+            </Text>
+
+            <TextInput
+              value={accessCode}
+              onChangeText={setAccessCode}
+              placeholder="Enter access code"
+              placeholderTextColor="#73849c"
+              autoCapitalize="characters"
+              style={styles.input}
+            />
+
+            <TouchableOpacity style={styles.checkButton} onPress={unlockAthlete}>
+              <Text style={styles.checkButtonText}>Open My Plan</Text>
+            </TouchableOpacity>
+
+            <Text style={styles.loginHint}>
+              Coach Rey gives each athlete their own private code.
+            </Text>
+          </View>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -429,9 +526,13 @@ export default function HomeScreen() {
           <View>
             <Text style={styles.appTitle}>Momentum Engine</Text>
             <Text style={styles.appSubtitle}>
-              {playerName || "Athlete"}'s performance hub
+              {playerName}'s performance hub
             </Text>
           </View>
+
+          <TouchableOpacity style={styles.logoutButton} onPress={logoutAthlete}>
+            <Text style={styles.logoutButtonText}>Switch</Text>
+          </TouchableOpacity>
         </View>
 
         <View style={styles.readinessCard}>
@@ -456,13 +557,10 @@ export default function HomeScreen() {
           <View style={styles.setupColumn}>
             <Text style={styles.cardTitle}>Player Setup</Text>
 
-            <TextInput
-              value={playerName}
-              onChangeText={setPlayerName}
-              placeholder="Player name"
-              placeholderTextColor="#73849c"
-              style={styles.input}
-            />
+            <View style={styles.lockedPlayerBox}>
+              <Text style={styles.lockedPlayerLabel}>Logged in as</Text>
+              <Text style={styles.lockedPlayerName}>{playerName}</Text>
+            </View>
 
             <Text style={styles.label}>Position</Text>
             <View style={styles.chipWrap}>
@@ -526,7 +624,11 @@ export default function HomeScreen() {
           disabled={isSaving}
         >
           <Text style={styles.checkButtonText}>
-            {isSaving ? "Saving..." : hasChecked ? "Update Readiness" : "Check Readiness"}
+            {isSaving
+              ? "Saving..."
+              : hasChecked
+              ? "Update Readiness"
+              : "Check Readiness"}
           </Text>
         </TouchableOpacity>
 
@@ -543,25 +645,18 @@ export default function HomeScreen() {
           {plan ? (
             <View style={styles.planGrid}>
               <PlanTile wide title="Coach Note" text={plan.coachFeedback} />
-
               <PlanTile title="Priority 1" text={plan.priorityActions[0]} />
-
               <PlanTile title="Priority 2" text={plan.priorityActions[1]} />
-
               <PlanTile wide title="Training / Day Plan" text={plan.trainingPlan} />
-
               <PlanTile wide title="Fuel" text={plan.fuelPlan} />
-
               <PlanTile wide title="Recovery" text={plan.recoveryPlan} />
-
               <PlanTile wide title="Mindset" text={plan.mindsetPlan} />
             </View>
           ) : (
             <View style={styles.emptyPlan}>
               <Text style={styles.emptyTitle}>No plan yet</Text>
               <Text style={styles.emptyText}>
-                Set the player, day, load, and check-in scores. Then tap Check
-                Readiness.
+                Set the day, load, and check-in scores. Then tap Check Readiness.
               </Text>
             </View>
           )}
@@ -588,25 +683,92 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background,
   },
+
+  loginContainer: {
+    flex: 1,
+    justifyContent: "center",
+    padding: 20,
+  },
+
+  loginCard: {
+    backgroundColor: COLORS.card,
+    borderRadius: 30,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+
+  loginSmallTitle: {
+    color: COLORS.green,
+    fontSize: 13,
+    fontWeight: "900",
+    letterSpacing: 2,
+    marginBottom: 10,
+  },
+
+  loginTitle: {
+    color: COLORS.text,
+    fontSize: 34,
+    fontWeight: "900",
+    marginBottom: 10,
+  },
+
+  loginText: {
+    color: COLORS.muted,
+    fontSize: 16,
+    lineHeight: 23,
+    marginBottom: 18,
+  },
+
+  loginHint: {
+    color: COLORS.muted,
+    fontSize: 13,
+    lineHeight: 20,
+    marginTop: 14,
+    textAlign: "center",
+  },
+
   container: {
     padding: 18,
     paddingBottom: 120,
   },
+
   header: {
     marginTop: 6,
     marginBottom: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
+
   appTitle: {
     color: COLORS.text,
     fontSize: 32,
     fontWeight: "900",
     letterSpacing: -0.8,
   },
+
   appSubtitle: {
     color: COLORS.muted,
     fontSize: 15,
     marginTop: 4,
   },
+
+  logoutButton: {
+    backgroundColor: COLORS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+
+  logoutButtonText: {
+    color: COLORS.text,
+    fontWeight: "900",
+    fontSize: 13,
+  },
+
   readinessCard: {
     backgroundColor: COLORS.blue,
     borderRadius: 30,
@@ -617,28 +779,33 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
   },
+
   readinessLeft: {
     flex: 1,
     paddingRight: 14,
   },
+
   readinessLabel: {
     color: "#dbeafe",
     fontSize: 14,
     fontWeight: "800",
     marginBottom: 8,
   },
+
   readinessTitle: {
     color: COLORS.text,
     fontSize: 27,
     fontWeight: "900",
     lineHeight: 31,
   },
+
   readinessSub: {
     color: "#dbeafe",
     fontSize: 14,
     marginTop: 8,
     lineHeight: 20,
   },
+
   scoreCircle: {
     width: 104,
     height: 104,
@@ -647,11 +814,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+
   scoreText: {
     color: COLORS.text,
     fontSize: 42,
     fontWeight: "900",
   },
+
   controlPanel: {
     backgroundColor: COLORS.card,
     borderRadius: 28,
@@ -660,16 +829,20 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 14,
   },
+
   setupColumn: {
     marginBottom: 18,
   },
+
   checkColumn: {},
+
   cardTitle: {
     color: COLORS.text,
     fontSize: 21,
     fontWeight: "900",
     marginBottom: 14,
   },
+
   input: {
     backgroundColor: "#061322",
     borderWidth: 1,
@@ -681,6 +854,29 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     marginBottom: 16,
   },
+
+  lockedPlayerBox: {
+    backgroundColor: "#061322",
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 18,
+    padding: 16,
+    marginBottom: 16,
+  },
+
+  lockedPlayerLabel: {
+    color: COLORS.muted,
+    fontSize: 13,
+    fontWeight: "900",
+    marginBottom: 4,
+  },
+
+  lockedPlayerName: {
+    color: COLORS.text,
+    fontSize: 24,
+    fontWeight: "900",
+  },
+
   label: {
     color: COLORS.muted,
     fontSize: 13,
@@ -688,11 +884,13 @@ const styles = StyleSheet.create({
     marginBottom: 9,
     marginTop: 2,
   },
+
   chipWrap: {
     flexDirection: "row",
     flexWrap: "wrap",
     marginBottom: 12,
   },
+
   chip: {
     borderWidth: 1,
     borderColor: COLORS.border,
@@ -703,19 +901,23 @@ const styles = StyleSheet.create({
     marginRight: 8,
     marginBottom: 8,
   },
+
   chipText: {
     color: "#d8e3f5",
     fontSize: 13,
     fontWeight: "900",
   },
+
   chipTextSelected: {
     color: "#03111d",
   },
+
   metricsGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "space-between",
   },
+
   metricBox: {
     width: "48.5%",
     backgroundColor: COLORS.cardSoft,
@@ -725,11 +927,13 @@ const styles = StyleSheet.create({
     padding: 13,
     marginBottom: 10,
   },
+
   metricLabel: {
     color: COLORS.muted,
     fontSize: 13,
     fontWeight: "800",
   },
+
   metricValue: {
     color: COLORS.text,
     fontSize: 21,
@@ -737,10 +941,12 @@ const styles = StyleSheet.create({
     marginTop: 3,
     marginBottom: 10,
   },
+
   metricButtons: {
     flexDirection: "row",
     justifyContent: "space-between",
   },
+
   miniButton: {
     width: 45,
     height: 38,
@@ -749,12 +955,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+
   miniButtonText: {
     color: COLORS.text,
     fontSize: 26,
     fontWeight: "900",
     lineHeight: 28,
   },
+
   checkButton: {
     backgroundColor: COLORS.green,
     borderRadius: 22,
@@ -762,14 +970,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 16,
   },
+
   checkButtonDisabled: {
     opacity: 0.6,
   },
+
   checkButtonText: {
     color: "#03111d",
     fontSize: 18,
     fontWeight: "900",
   },
+
   planBoard: {
     backgroundColor: "#08251f",
     borderRadius: 28,
@@ -777,25 +988,30 @@ const styles = StyleSheet.create({
     borderColor: COLORS.green,
     padding: 16,
   },
+
   planBoardHeader: {
     marginBottom: 14,
   },
+
   planBoardTitle: {
     color: COLORS.text,
     fontSize: 24,
     fontWeight: "900",
   },
+
   planBoardSub: {
     color: "#a7f3d0",
     fontSize: 14,
     marginTop: 5,
     lineHeight: 20,
   },
+
   planGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "space-between",
   },
+
   planTile: {
     width: "48.5%",
     backgroundColor: "rgba(0,0,0,0.2)",
@@ -805,9 +1021,11 @@ const styles = StyleSheet.create({
     borderColor: "rgba(45,212,191,0.24)",
     marginBottom: 10,
   },
+
   planTileWide: {
     width: "100%",
   },
+
   planTileTitle: {
     color: COLORS.green,
     fontSize: 13,
@@ -816,11 +1034,13 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
     marginBottom: 8,
   },
+
   planTileText: {
     color: "#dcfce7",
     fontSize: 14,
     lineHeight: 21,
   },
+
   emptyPlan: {
     backgroundColor: "rgba(0,0,0,0.2)",
     borderRadius: 20,
@@ -828,12 +1048,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(45,212,191,0.24)",
   },
+
   emptyTitle: {
     color: COLORS.text,
     fontSize: 20,
     fontWeight: "900",
     marginBottom: 8,
   },
+
   emptyText: {
     color: "#a7f3d0",
     fontSize: 15,
