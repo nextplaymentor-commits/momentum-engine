@@ -35,6 +35,8 @@ type PlanResult = {
   trainingPlan: string;
   fuelPlan: string;
   recoveryPlan: string;
+  mindsetPlan: string;
+  journalPrompts: string[];
 };
 
 function clamp(num: number, min: number, max: number) {
@@ -74,120 +76,6 @@ function calculatePlan(
       ? "Recovery Focus"
       : "Recharge Needed";
 
-  const priorityActions: string[] = [];
-
-  if (metrics.sleep <= 0) {
-    priorityActions.push("Sleep: Add your sleep score so your plan is accurate.");
-  } else if (metrics.sleep <= 6) {
-    priorityActions.push("Sleep: Get to bed earlier tonight and protect recovery.");
-  } else {
-    priorityActions.push("Sleep: Keep your same bedtime routine.");
-  }
-
-  if (metrics.energy <= 0) {
-    priorityActions.push("Energy: Add your energy score so the plan can adjust.");
-  } else if (metrics.energy <= 6) {
-    priorityActions.push("Energy: Eat a carb snack now — banana, toast, oatmeal, or rice.");
-  } else {
-    priorityActions.push("Energy: Start fast and bring intensity early.");
-  }
-
-  if (metrics.focus <= 0) {
-    priorityActions.push("Focus: Add your focus score before checking readiness.");
-  } else if (metrics.focus <= 6) {
-    priorityActions.push("Focus: Pick one word before playing — scan, compete, or communicate.");
-  } else {
-    priorityActions.push("Focus: Play quicker and make early decisions.");
-  }
-
-  if (metrics.confidence <= 0) {
-    priorityActions.push("Confidence: Add your confidence score so your plan is accurate.");
-  } else if (metrics.confidence <= 6) {
-    priorityActions.push("Confidence: Write 3 things you do well before training.");
-  } else {
-    priorityActions.push("Confidence: Be vocal, demand the ball, and play forward.");
-  }
-
-  if (metrics.stress >= 7) {
-    priorityActions.unshift("Stress: Lower intensity today and stretch for 10 minutes.");
-  }
-
-  if (metrics.soreness >= 7) {
-    priorityActions.unshift("Soreness: Prioritize warm-up, mobility, hydration, and avoid extra load.");
-  } else if (metrics.soreness >= 4) {
-    priorityActions.push("Soreness: Add extra stretching and a slower warm-up before training.");
-  }
-
-  const positionPlan: Record<Position, string> = {
-    Striker:
-      "20 finishes: 10 one-touch, 5 across goal, 5 near-post. Add checking runs and runs behind.",
-    Winger:
-      "10 one-on-one moves, 10 crosses, 10 cut-inside shots, and 6 recovery sprints.",
-    Midfielder:
-      "30 scanning reps, 20 wall passes, 10 turns away from pressure, and 10 switches of play.",
-    Defender:
-      "15 body-shape reps, 10 clearances, 10 one-on-one defending reps, and 10 communication commands.",
-    Goalkeeper:
-      "20 catches, 15 footwork reps, 10 distribution passes, and 10 set-position reactions.",
-  };
-
-  const loadPlan =
-    trainingLoad === "Full"
-      ? "Full Load: warmup, technical work, position reps, fitness, cooldown."
-      : trainingLoad === "Light"
-      ? "Light Load: mobility, ball touches, passing, stretch."
-      : "No Load: walk, stretch, hydrate, and review your goals.";
-
-  const dayPlan =
-    dayType === "Match"
-      ? "Match Day: eat 2–3 hours before, arrive early, visualize your first 3 actions, start vocal, and win your first duel."
-      : dayType === "Training"
-      ? "Training Day: focus on clean reps, intensity, and one position-specific detail."
-      : "Off Day: walk 20 minutes, stretch 10 minutes, hydrate, and journal one thing you learned.";
-
-  let fuelPlan =
-    "Protein + carbs: eggs/chicken, rice/potatoes/oatmeal, fruit, vegetables, and water.";
-
-  if (dayType === "Match") {
-    fuelPlan =
-      "Match Fuel: oatmeal or toast with eggs. Chicken/rice or pasta 2–3 hours before. Banana or yogurt 60 minutes before.";
-  }
-
-  if (metrics.nutrition > 0 && metrics.nutrition <= 5) {
-    fuelPlan =
-      "Nutrition Fix: eat chicken or eggs, rice or potatoes, fruit, and water. Do not skip carbs.";
-  }
-
-  let recoveryPlan =
-    "Stretch calves, hamstrings, hips, and quads for 10 minutes. Drink water and sleep on time.";
-
-  if (metrics.sleep > 0 && metrics.sleep <= 6) {
-    recoveryPlan =
-      "Recovery Priority: no extra hard work tonight. Stretch, shower, hydrate, and get to bed early.";
-  }
-
-  if (metrics.stress >= 7) {
-    recoveryPlan =
-      "Stress Recovery: keep tonight calm. Stretch, hydrate, take deep breaths, and protect your sleep.";
-  }
-
-  if (metrics.soreness >= 7) {
-    recoveryPlan =
-      "Soreness Recovery: extend your warm-up, stretch sore areas, hydrate, and avoid extra high-impact work today.";
-  }
-
-  let coachFeedback = `${name}, check your readiness and follow the exact plan.`;
-
-  if (score >= 90) {
-    coachFeedback = `${name}, you are ready. Body and mind look sharp today. Keep your standard high.`;
-  } else if (score >= 75) {
-    coachFeedback = `${name}, you are in a good spot. Stay locked in and take care of the small details.`;
-  } else if (score >= 60) {
-    coachFeedback = `${name}, you are okay today, but be smart with your load and recovery.`;
-  } else {
-    coachFeedback = `${name}, reset today. Fix recovery, nutrition, and confidence first.`;
-  }
-
   let riskText = "Low Risk";
 
   if (
@@ -206,15 +94,228 @@ function calculatePlan(
     riskText = "Moderate Risk";
   }
 
+  const priorityActions: string[] = [];
+
+  if (metrics.soreness >= 7) {
+    priorityActions.push("Soreness: Keep the load low. Mobility, hydration, and no extra impact today.");
+  }
+
+  if (metrics.stress >= 7) {
+    priorityActions.push("Stress: Slow the day down. Breathe, reset, and keep training simple.");
+  }
+
+  if (metrics.sleep > 0 && metrics.sleep <= 6) {
+    priorityActions.push("Sleep: Protect recovery tonight. No extra work late.");
+  }
+
+  if (metrics.nutrition > 0 && metrics.nutrition <= 5) {
+    priorityActions.push("Nutrition: Get carbs, protein, fruit, and water in today.");
+  }
+
+  if (metrics.confidence > 0 && metrics.confidence <= 5) {
+    priorityActions.push("Confidence: Focus on one small win early.");
+  }
+
+  if (priorityActions.length === 0) {
+    priorityActions.push("Body: You are in a solid spot. Keep the standard high.");
+    priorityActions.push("Mindset: Start sharp and stay locked into the details.");
+  }
+
+  const positionFocus: Record<Position, string> = {
+    Striker:
+      "Striker Focus: finishing, checking runs, timing runs behind, and staying aggressive in the box.",
+    Winger:
+      "Winger Focus: 1v1 attacking, first touch forward, crossing, cut-inside shots, and recovery runs.",
+    Midfielder:
+      "Midfielder Focus: scanning, playing on the half-turn, wall passes, switches, and quick decisions.",
+    Defender:
+      "Defender Focus: body shape, 1v1 defending, clearances, communication, and winning first contact.",
+    Goalkeeper:
+      "Goalkeeper Focus: footwork, set position, catching, distribution, communication, and reactions.",
+  };
+
+  let dayPlan = "";
+
+  if (dayType === "Match") {
+    dayPlan =
+      "Match Day Plan: arrive early, eat 2–3 hours before, visualize your first 3 actions, communicate early, play simple for the first 5 minutes, and win your first duel.";
+  }
+
+  if (dayType === "Training") {
+    dayPlan =
+      "Training Day Plan: focus on quality reps, strong habits, clean technique, communication, and one position-specific detail.";
+  }
+
+  if (dayType === "Off") {
+    dayPlan =
+      "Off Day Plan: no hard training. Walk 15–20 minutes, stretch, hydrate, eat well, and mentally reset.";
+  }
+
+  let loadPlan = "";
+
+  if (trainingLoad === "Full") {
+    loadPlan =
+      "Full Load: warm up properly, complete your main training block, push intensity, then cool down and recover.";
+  }
+
+  if (trainingLoad === "Light") {
+    loadPlan =
+      "Light Load: keep it technical. Ball touches, passing, mobility, light movement, and no extra conditioning.";
+  }
+
+  if (trainingLoad === "None") {
+    loadPlan =
+      "No Load: recovery only. Stretch, walk, hydrate, journal, and prepare for the next session.";
+  }
+
+  let trainingPlan = `${positionFocus[position]} ${dayPlan} ${loadPlan}`;
+
+  if (dayType === "Off") {
+    trainingPlan = `${dayPlan} ${loadPlan} If you touch a ball, keep it easy: juggling, light wall passes, or simple technical touches only.`;
+  }
+
+  let fuelPlan = "Eat balanced today: protein, carbs, fruit, vegetables, and water.";
+
+  if (dayType === "Match") {
+    fuelPlan =
+      "Match Fuel: oatmeal, toast, eggs, chicken/rice, pasta, banana, yogurt, and water. Eat 2–3 hours before the game.";
+  }
+
+  if (dayType === "Training") {
+    fuelPlan =
+      "Training Fuel: carbs before training, protein after, fruit for energy, and water throughout the day.";
+  }
+
+  if (dayType === "Off") {
+    fuelPlan =
+      "Off Day Fuel: eat clean and recover. Protein, carbs, fruit, vegetables, and plenty of water. Do not skip meals.";
+  }
+
+  if (metrics.nutrition > 0 && metrics.nutrition <= 5) {
+    fuelPlan =
+      "Nutrition Fix: get real food in today. Protein + carbs first: eggs/toast, chicken/rice, pasta, fruit, yogurt, or potatoes.";
+  }
+
+  let recoveryPlan = "Stretch calves, hamstrings, hips, and quads for 10 minutes. Hydrate and sleep on time.";
+
+  if (dayType === "Match") {
+    recoveryPlan =
+      "Post-Match Recovery: cooldown walk, stretch, hydrate, eat protein + carbs, and sleep early.";
+  }
+
+  if (dayType === "Training") {
+    recoveryPlan =
+      "Training Recovery: cooldown, stretch sore areas, hydrate, eat a recovery meal, and avoid extra work if your body feels heavy.";
+  }
+
+  if (dayType === "Off") {
+    recoveryPlan =
+      "Off Day Recovery: mobility, hydration, light walk, mental reset, and no extra hard work.";
+  }
+
+  if (metrics.soreness >= 7) {
+    recoveryPlan =
+      "Soreness Recovery: take it seriously. Mobility, hydration, stretching, and no extra high-impact work today.";
+  }
+
+  if (metrics.stress >= 7) {
+    recoveryPlan =
+      "Stress Recovery: keep today calm. Deep breathing, light movement, hydration, and early sleep.";
+  }
+
+  let mindsetPlan = "";
+
+  if (dayType === "Match") {
+    mindsetPlan =
+      "Mindset: compete first, then settle in. Win your first action, communicate, and do not chase perfection.";
+  }
+
+  if (dayType === "Training") {
+    mindsetPlan =
+      "Mindset: train with purpose. Pick one detail and attack it the whole session.";
+  }
+
+  if (dayType === "Off") {
+    mindsetPlan =
+      "Mindset: recovery is work too. Use today to reset your body and clear your mind.";
+  }
+
+  if (metrics.confidence > 0 && metrics.confidence <= 5) {
+    mindsetPlan =
+      "Mindset: keep it simple. One good touch, one good pass, one good decision. Build confidence through action.";
+  }
+
+  const journalPrompts: string[] = [];
+
+  if (dayType === "Off") {
+    journalPrompts.push(
+      "What did my body need today?",
+      "What helped me recover mentally?",
+      "What can I do tonight to be ready for the next session?"
+    );
+  }
+
+  if (dayType === "Training") {
+    journalPrompts.push(
+      "What did I improve today?",
+      "What was hard about training?",
+      "What detail do I want to sharpen next time?"
+    );
+  }
+
+  if (dayType === "Match") {
+    journalPrompts.push(
+      "What moment changed the game today?",
+      "How was my confidence under pressure?",
+      "What would I do differently next match?"
+    );
+  }
+
+  if (position === "Striker") {
+    journalPrompts.push("Did I stay aggressive and make dangerous runs?");
+  }
+
+  if (position === "Winger") {
+    journalPrompts.push("Did I attack defenders with confidence?");
+  }
+
+  if (position === "Midfielder") {
+    journalPrompts.push("Did I scan before receiving the ball?");
+  }
+
+  if (position === "Defender") {
+    journalPrompts.push("Did I communicate and stay locked in defensively?");
+  }
+
+  if (position === "Goalkeeper") {
+    journalPrompts.push("Did I stay vocal, organized, and ready?");
+  }
+
+  let coachFeedback = `${name}, follow the plan for your ${dayType.toLowerCase()} day.`;
+
+  if (dayType === "Off") {
+    coachFeedback = `${name}, today is not about doing more. It is about recovering right so you can come back sharper.`;
+  } else if (dayType === "Match") {
+    coachFeedback = `${name}, today is game day. Keep it simple early, compete, and trust your work.`;
+  } else if (dayType === "Training") {
+    coachFeedback = `${name}, train with purpose today. One detail, full focus, clean reps.`;
+  }
+
+  if (score < 60) {
+    coachFeedback = `${name}, your readiness is low today. Be smart with your body and prioritize recovery.`;
+  }
+
   return {
     score,
     readinessLabel,
     coachFeedback,
     riskText,
     priorityActions: priorityActions.slice(0, 4),
-    trainingPlan: `${positionPlan[position]} ${dayPlan} ${loadPlan}`,
+    trainingPlan,
     fuelPlan,
     recoveryPlan,
+    mindsetPlan,
+    journalPrompts,
   };
 }
 
@@ -413,22 +514,16 @@ export default function HomeScreen() {
 
             <Text style={styles.label}>Position</Text>
             <View style={styles.chipWrap}>
-              {(
-                [
-                  "Striker",
-                  "Winger",
-                  "Midfielder",
-                  "Defender",
-                  "Goalkeeper",
-                ] as Position[]
-              ).map((item) => (
-                <Chip
-                  key={item}
-                  label={item}
-                  selected={position === item}
-                  onPress={() => setPosition(item)}
-                />
-              ))}
+              {(["Striker", "Winger", "Midfielder", "Defender", "Goalkeeper"] as Position[]).map(
+                (item) => (
+                  <Chip
+                    key={item}
+                    label={item}
+                    selected={position === item}
+                    onPress={() => setPosition(item)}
+                  />
+                )
+              )}
             </View>
 
             <Text style={styles.label}>Day</Text>
@@ -462,54 +557,13 @@ export default function HomeScreen() {
             <Text style={styles.cardTitle}>Daily Check-In</Text>
 
             <View style={styles.metricsGrid}>
-              <MetricBox
-                label="Sleep"
-                value={metrics.sleep}
-                onMinus={() => updateMetric("sleep", -1)}
-                onPlus={() => updateMetric("sleep", 1)}
-              />
-
-              <MetricBox
-                label="Energy"
-                value={metrics.energy}
-                onMinus={() => updateMetric("energy", -1)}
-                onPlus={() => updateMetric("energy", 1)}
-              />
-
-              <MetricBox
-                label="Focus"
-                value={metrics.focus}
-                onMinus={() => updateMetric("focus", -1)}
-                onPlus={() => updateMetric("focus", 1)}
-              />
-
-              <MetricBox
-                label="Nutrition"
-                value={metrics.nutrition}
-                onMinus={() => updateMetric("nutrition", -1)}
-                onPlus={() => updateMetric("nutrition", 1)}
-              />
-
-              <MetricBox
-                label="Confidence"
-                value={metrics.confidence}
-                onMinus={() => updateMetric("confidence", -1)}
-                onPlus={() => updateMetric("confidence", 1)}
-              />
-
-              <MetricBox
-                label="Stress"
-                value={metrics.stress}
-                onMinus={() => updateMetric("stress", -1)}
-                onPlus={() => updateMetric("stress", 1)}
-              />
-
-              <MetricBox
-                label="Soreness"
-                value={metrics.soreness}
-                onMinus={() => updateMetric("soreness", -1)}
-                onPlus={() => updateMetric("soreness", 1)}
-              />
+              <MetricBox label="Sleep" value={metrics.sleep} onMinus={() => updateMetric("sleep", -1)} onPlus={() => updateMetric("sleep", 1)} />
+              <MetricBox label="Energy" value={metrics.energy} onMinus={() => updateMetric("energy", -1)} onPlus={() => updateMetric("energy", 1)} />
+              <MetricBox label="Focus" value={metrics.focus} onMinus={() => updateMetric("focus", -1)} onPlus={() => updateMetric("focus", 1)} />
+              <MetricBox label="Nutrition" value={metrics.nutrition} onMinus={() => updateMetric("nutrition", -1)} onPlus={() => updateMetric("nutrition", 1)} />
+              <MetricBox label="Confidence" value={metrics.confidence} onMinus={() => updateMetric("confidence", -1)} onPlus={() => updateMetric("confidence", 1)} />
+              <MetricBox label="Stress" value={metrics.stress} onMinus={() => updateMetric("stress", -1)} onPlus={() => updateMetric("stress", 1)} />
+              <MetricBox label="Soreness" value={metrics.soreness} onMinus={() => updateMetric("soreness", -1)} onPlus={() => updateMetric("soreness", 1)} />
             </View>
           </View>
         </View>
@@ -520,11 +574,7 @@ export default function HomeScreen() {
           disabled={isSaving}
         >
           <Text style={styles.checkButtonText}>
-            {isSaving
-              ? "Saving..."
-              : hasChecked
-              ? "Update Readiness"
-              : "Check Readiness"}
+            {isSaving ? "Saving..." : hasChecked ? "Update Readiness" : "Check Readiness"}
           </Text>
         </TouchableOpacity>
 
@@ -533,7 +583,7 @@ export default function HomeScreen() {
             <Text style={styles.planBoardTitle}>Today’s Plan Board</Text>
             <Text style={styles.planBoardSub}>
               {plan
-                ? "Your actions update when you adjust your check-in."
+                ? `Built for ${position} • ${dayType} Day • ${trainingLoad} Load`
                 : "Plan is locked until you check readiness."}
             </Text>
           </View>
@@ -546,11 +596,19 @@ export default function HomeScreen() {
 
               <PlanTile title="Priority 2" text={plan.priorityActions[1]} />
 
-              <PlanTile wide title="Training" text={plan.trainingPlan} />
+              <PlanTile wide title="Training / Day Plan" text={plan.trainingPlan} />
 
               <PlanTile title="Fuel" text={plan.fuelPlan} />
 
               <PlanTile title="Recovery" text={plan.recoveryPlan} />
+
+              <PlanTile wide title="Mindset" text={plan.mindsetPlan} />
+
+              <PlanTile
+                wide
+                title="Journal Prompts"
+                text={plan.journalPrompts.join("\n\n")}
+              />
             </View>
           ) : (
             <View style={styles.emptyPlan}>
