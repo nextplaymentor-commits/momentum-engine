@@ -71,7 +71,7 @@ export default function TabLayout() {
       />
 
       <Tabs.Screen
-        name="journal"
+        name="journal" P
         options={{
           title: "Journal",
           tabBarIcon: ({ color, focused }) => (
