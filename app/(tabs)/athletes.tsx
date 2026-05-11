@@ -21,7 +21,16 @@ type AthleteProfile = {
   goal: string;
   level: string;
   parent_contact: string;
+  access_code?: string;
+  status?: string;
 };
+
+function generateAccessCode(name: string) {
+  const cleanName = name.trim().replace(/\s+/g, "").toUpperCase();
+  const shortName = cleanName.slice(0, 6) || "ATHLETE";
+  const year = new Date().getFullYear();
+  return `${shortName}${year}`;
+}
 
 export default function AthletesScreen() {
   const [profiles, setProfiles] = useState<AthleteProfile[]>([]);
@@ -32,6 +41,7 @@ export default function AthletesScreen() {
   const [goal, setGoal] = useState("");
   const [level, setLevel] = useState("");
   const [parentContact, setParentContact] = useState("");
+  const [accessCode, setAccessCode] = useState("");
 
   const loadProfiles = async () => {
     const { data, error } = await supabase
@@ -55,27 +65,35 @@ export default function AthletesScreen() {
 
   const saveProfile = async () => {
     if (!playerName.trim()) {
-      alert("Enter athlete name");
+      Alert.alert("Missing Name", "Enter athlete name.");
       return;
     }
+
+    const finalAccessCode =
+      accessCode.trim().toUpperCase() || generateAccessCode(playerName);
 
     const { error } = await supabase.from("athlete_profiles").insert([
       {
         player_name: playerName.trim(),
-        age: Number(age),
-        position,
-        goal,
-        level,
-        parent_contact: parentContact,
+        age: Number(age) || 0,
+        position: position.trim(),
+        goal: goal.trim(),
+        level: level.trim(),
+        parent_contact: parentContact.trim(),
+        access_code: finalAccessCode,
+        status: "active",
       },
     ]);
 
     if (error) {
-      alert(error.message);
+      Alert.alert("Save Failed", error.message);
       return;
     }
 
-    alert("Athlete added!");
+    Alert.alert(
+      "Athlete Added",
+      `${playerName.trim()} was added.\n\nAccess Code: ${finalAccessCode}`
+    );
 
     setPlayerName("");
     setAge("");
@@ -83,6 +101,7 @@ export default function AthletesScreen() {
     setGoal("");
     setLevel("");
     setParentContact("");
+    setAccessCode("");
 
     loadProfiles();
   };
@@ -108,7 +127,7 @@ export default function AthletesScreen() {
               .eq("id", id);
 
             if (error) {
-              alert(error.message);
+              Alert.alert("Delete Failed", error.message);
               return;
             }
 
@@ -138,16 +157,34 @@ export default function AthletesScreen() {
               .not("id", "is", null);
 
             if (error) {
-              alert(error.message);
+              Alert.alert("Clear Failed", error.message);
               return;
             }
 
             setProfiles([]);
-            alert("All athletes cleared!");
+            Alert.alert("Cleared", "All athletes cleared.");
           },
         },
       ]
     );
+  };
+
+  const deactivateAthlete = async (id?: string, currentStatus?: string) => {
+    if (!id) return;
+
+    const nextStatus = currentStatus === "inactive" ? "active" : "inactive";
+
+    const { error } = await supabase
+      .from("athlete_profiles")
+      .update({ status: nextStatus })
+      .eq("id", id);
+
+    if (error) {
+      Alert.alert("Update Failed", error.message);
+      return;
+    }
+
+    loadProfiles();
   };
 
   return (
@@ -156,10 +193,11 @@ export default function AthletesScreen() {
         <View style={styles.heroCard}>
           <Text style={styles.smallTitle}>ATHLETES</Text>
 
-          <Text style={styles.title}>Athlete Profiles</Text>
+          <Text style={styles.title}>Athlete Manager</Text>
 
           <Text style={styles.subtitle}>
-            Add and manage athlete information for Momentum Engine.
+            Add athletes, create access codes, and manage who can use Momentum
+            Engine.
           </Text>
         </View>
 
@@ -168,7 +206,12 @@ export default function AthletesScreen() {
 
           <TextInput
             value={playerName}
-            onChangeText={setPlayerName}
+            onChangeText={(text) => {
+              setPlayerName(text);
+              if (!accessCode.trim()) {
+                setAccessCode(generateAccessCode(text));
+              }
+            }}
             placeholder="Athlete Name"
             placeholderTextColor="#64748b"
             style={styles.input}
@@ -215,6 +258,15 @@ export default function AthletesScreen() {
             style={styles.input}
           />
 
+          <TextInput
+            value={accessCode}
+            onChangeText={(text) => setAccessCode(text.toUpperCase())}
+            placeholder="Access Code"
+            placeholderTextColor="#64748b"
+            autoCapitalize="characters"
+            style={styles.input}
+          />
+
           <TouchableOpacity style={styles.button} onPress={saveProfile}>
             <Text style={styles.buttonText}>Save Athlete</Text>
           </TouchableOpacity>
@@ -239,19 +291,51 @@ export default function AthletesScreen() {
           ) : (
             profiles.map((item, index) => (
               <View key={item.id || index} style={styles.profileCard}>
-                <Text style={styles.profileName}>{item.player_name}</Text>
+                <View style={styles.profileTopRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.profileName}>{item.player_name}</Text>
+                    <Text style={styles.statusText}>
+                      Status: {item.status || "active"}
+                    </Text>
+                  </View>
+
+                  <View
+                    style={[
+                      styles.statusBadge,
+                      item.status === "inactive" && styles.statusBadgeInactive,
+                    ]}
+                  >
+                    <Text style={styles.statusBadgeText}>
+                      {item.status === "inactive" ? "Inactive" : "Active"}
+                    </Text>
+                  </View>
+                </View>
 
                 <Text style={styles.bodyText}>Age: {item.age}</Text>
-
                 <Text style={styles.bodyText}>Position: {item.position}</Text>
-
                 <Text style={styles.bodyText}>Goal: {item.goal}</Text>
-
                 <Text style={styles.bodyText}>Level: {item.level}</Text>
-
                 <Text style={styles.bodyText}>
                   Parent: {item.parent_contact}
                 </Text>
+
+                <View style={styles.codeBox}>
+                  <Text style={styles.codeLabel}>Athlete Access Code</Text>
+                  <Text style={styles.codeText}>
+                    {item.access_code || "No code yet"}
+                  </Text>
+                </View>
+
+                <TouchableOpacity
+                  style={styles.secondaryButton}
+                  onPress={() => deactivateAthlete(item.id, item.status)}
+                >
+                  <Text style={styles.secondaryButtonText}>
+                    {item.status === "inactive"
+                      ? "Reactivate Athlete"
+                      : "Deactivate Athlete"}
+                  </Text>
+                </TouchableOpacity>
 
                 <TouchableOpacity
                   style={styles.deleteButton}
@@ -380,11 +464,42 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
 
+  profileTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+
   profileName: {
     color: "#ffffff",
     fontSize: 22,
     fontWeight: "900",
+    marginBottom: 4,
+  },
+
+  statusText: {
+    color: "#9fb0c8",
+    fontSize: 13,
+    fontWeight: "800",
     marginBottom: 8,
+  },
+
+  statusBadge: {
+    backgroundColor: "#14532d",
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    marginLeft: 10,
+  },
+
+  statusBadgeInactive: {
+    backgroundColor: "#7f1d1d",
+  },
+
+  statusBadgeText: {
+    color: "#ffffff",
+    fontSize: 11,
+    fontWeight: "900",
   },
 
   bodyText: {
@@ -393,12 +508,50 @@ const styles = StyleSheet.create({
     lineHeight: 23,
   },
 
+  codeBox: {
+    backgroundColor: "#0b182b",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#2dd4bf",
+    padding: 14,
+    marginTop: 14,
+    marginBottom: 12,
+  },
+
+  codeLabel: {
+    color: "#9fb0c8",
+    fontSize: 12,
+    fontWeight: "900",
+    marginBottom: 4,
+  },
+
+  codeText: {
+    color: "#2dd4bf",
+    fontSize: 20,
+    fontWeight: "900",
+    letterSpacing: 1,
+  },
+
+  secondaryButton: {
+    backgroundColor: "#1e3a8a",
+    borderRadius: 14,
+    paddingVertical: 12,
+    alignItems: "center",
+    marginTop: 6,
+  },
+
+  secondaryButtonText: {
+    color: "#ffffff",
+    fontWeight: "900",
+    fontSize: 14,
+  },
+
   deleteButton: {
     backgroundColor: "#7f1d1d",
     borderRadius: 14,
     paddingVertical: 12,
     alignItems: "center",
-    marginTop: 14,
+    marginTop: 10,
   },
 
   deleteButtonText: {
