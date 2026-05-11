@@ -17,9 +17,11 @@ type DayType = "Training" | "Match" | "Off";
 type TrainingLoad = "None" | "Light" | "Full";
 
 type AthleteAccess = {
-  code: string;
-  name: string;
-  position: Position;
+  id?: string;
+  access_code: string;
+  player_name: string;
+  position: string;
+  status?: string;
 };
 
 type MetricState = {
@@ -44,19 +46,24 @@ type PlanResult = {
   mindsetPlan: string;
 };
 
-const ATHLETE_ACCESS_CODES: AthleteAccess[] = [
-  { code: "NOAH2026", name: "Noah", position: "Defender" },
-  { code: "AVY2026", name: "Avy", position: "Winger" },
-  { code: "DREW2026", name: "Drew", position: "Midfielder" },
-  { code: "JORDY2026", name: "Jordy", position: "Midfielder" },
-  { code: "EMILIO2026", name: "Emilio", position: "Midfielder" },
-  { code: "MAXI2026", name: "Maxi", position: "Winger" },
-  { code: "RYAN2026", name: "Ryan", position: "Winger" },
-  { code: "REYCOACH", name: "Rey", position: "Midfielder" },
-];
-
 function clamp(num: number, min: number, max: number) {
   return Math.max(min, Math.min(num, max));
+}
+
+function normalizePosition(position?: string): Position {
+  const clean = position?.trim();
+
+  if (
+    clean === "Striker" ||
+    clean === "Winger" ||
+    clean === "Midfielder" ||
+    clean === "Defender" ||
+    clean === "Goalkeeper"
+  ) {
+    return clean;
+  }
+
+  return "Midfielder";
 }
 
 function calculatePlan(
@@ -375,6 +382,7 @@ export default function HomeScreen() {
   const [trainingLoad, setTrainingLoad] = useState<TrainingLoad>("Full");
   const [hasChecked, setHasChecked] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isUnlocking, setIsUnlocking] = useState(false);
 
   const [metrics, setMetrics] = useState<MetricState>({
     sleep: 0,
@@ -386,22 +394,46 @@ export default function HomeScreen() {
     soreness: 0,
   });
 
-  const playerName = activeAthlete?.name || "Athlete";
+  const playerName = activeAthlete?.player_name || "Athlete";
 
-  const unlockAthlete = () => {
+  const unlockAthlete = async () => {
     const cleanCode = accessCode.trim().toUpperCase();
 
-    const foundAthlete = ATHLETE_ACCESS_CODES.find(
-      (athlete) => athlete.code === cleanCode
-    );
+    if (!cleanCode) {
+      Alert.alert("Access Required", "Enter your athlete access code.");
+      return;
+    }
 
-    if (!foundAthlete) {
+    setIsUnlocking(true);
+
+    const { data, error } = await supabase
+      .from("athlete_profiles")
+      .select("id, player_name, position, access_code, status")
+      .eq("access_code", cleanCode)
+      .maybeSingle();
+
+    setIsUnlocking(false);
+
+    if (error) {
+      Alert.alert("Login Failed", error.message);
+      return;
+    }
+
+    if (!data) {
       Alert.alert("Invalid Code", "Please enter the correct athlete access code.");
       return;
     }
 
-    setActiveAthlete(foundAthlete);
-    setPosition(foundAthlete.position);
+    if (data.status === "inactive") {
+      Alert.alert(
+        "Inactive Athlete",
+        "This athlete is currently inactive. Please contact Coach Rey."
+      );
+      return;
+    }
+
+    setActiveAthlete(data);
+    setPosition(normalizePosition(data.position));
     setHasChecked(false);
   };
 
@@ -496,15 +528,21 @@ export default function HomeScreen() {
 
             <TextInput
               value={accessCode}
-              onChangeText={setAccessCode}
+              onChangeText={(text) => setAccessCode(text.toUpperCase())}
               placeholder="Enter access code"
               placeholderTextColor="#73849c"
               autoCapitalize="characters"
               style={styles.input}
             />
 
-            <TouchableOpacity style={styles.checkButton} onPress={unlockAthlete}>
-              <Text style={styles.checkButtonText}>Open My Plan</Text>
+            <TouchableOpacity
+              style={[styles.checkButton, isUnlocking && styles.checkButtonDisabled]}
+              onPress={unlockAthlete}
+              disabled={isUnlocking}
+            >
+              <Text style={styles.checkButtonText}>
+                {isUnlocking ? "Checking..." : "Open My Plan"}
+              </Text>
             </TouchableOpacity>
 
             <Text style={styles.loginHint}>
@@ -525,9 +563,7 @@ export default function HomeScreen() {
         <View style={styles.header}>
           <View>
             <Text style={styles.appTitle}>Momentum Engine</Text>
-            <Text style={styles.appSubtitle}>
-              {playerName}'s performance hub
-            </Text>
+            <Text style={styles.appSubtitle}>{playerName}'s performance hub</Text>
           </View>
 
           <TouchableOpacity style={styles.logoutButton} onPress={logoutAthlete}>
