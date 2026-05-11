@@ -1,28 +1,30 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useEffect, useState } from "react";
 import {
-    Alert,
-    KeyboardAvoidingView,
-    Platform,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
+
+import { supabase } from "../../lib/supabase";
+
+type AthleteAccess = {
+  id?: string;
+  access_code: string;
+  player_name: string;
+  status?: string;
+};
 
 type Question = {
   id: string;
   text: string;
-};
-
-type JournalEntry = {
-  id: string;
-  date: string;
-  questions: Question[];
-  answers: Record<string, string>;
 };
 
 const QUESTIONS_PER_ENTRY = 2;
@@ -58,14 +60,6 @@ const CORE_QUESTIONS: Question[] = [
   { id: "core-28", text: "Did you drink enough water today?" },
   { id: "core-29", text: "How was your sleep last night?" },
   { id: "core-30", text: "What recovery do you need tonight?" },
-];
-
-const POSITIONS = [
-  "striker",
-  "winger",
-  "midfielder",
-  "defender",
-  "goalkeeper",
 ];
 
 const SKILLS = [
@@ -137,16 +131,6 @@ function buildQuestionBank() {
       id: `skill-rep-${skillIndex}`,
       text: `What is one specific rep you can do next session to improve your ${skill}?`,
     });
-
-    bank.push({
-      id: `skill-impact-${skillIndex}`,
-      text: `How did your ${skill} affect your performance today?`,
-    });
-
-    bank.push({
-      id: `skill-standard-${skillIndex}`,
-      text: `What standard do you want to set for your ${skill} next time?`,
-    });
   });
 
   MOMENTS.forEach((moment, momentIndex) => {
@@ -159,55 +143,9 @@ function buildQuestionBank() {
       id: `moment-improve-${momentIndex}`,
       text: `What could you improve during the ${moment} next time?`,
     });
-
-    bank.push({
-      id: `moment-mindset-${momentIndex}`,
-      text: `What was your mindset during the ${moment}?`,
-    });
   });
 
-  POSITIONS.forEach((position, positionIndex) => {
-    bank.push({
-      id: `position-role-${positionIndex}`,
-      text: `As a ${position}, what did you do today that helped your team?`,
-    });
-
-    bank.push({
-      id: `position-improve-${positionIndex}`,
-      text: `As a ${position}, what is one part of your role you want to improve?`,
-    });
-
-    bank.push({
-      id: `position-confidence-${positionIndex}`,
-      text: `As a ${position}, what action would help you play with more confidence next time?`,
-    });
-  });
-
-  SKILLS.forEach((skill, skillIndex) => {
-    MOMENTS.forEach((moment, momentIndex) => {
-      bank.push({
-        id: `combo-use-${skillIndex}-${momentIndex}`,
-        text: `During the ${moment}, how did you use your ${skill}?`,
-      });
-
-      bank.push({
-        id: `combo-better-${skillIndex}-${momentIndex}`,
-        text: `During the ${moment}, what would better ${skill} have helped you do?`,
-      });
-    });
-  });
-
-  const unique = new Map<string, Question>();
-
-  bank.forEach((question) => {
-    const key = question.text.toLowerCase().trim();
-
-    if (!unique.has(key)) {
-      unique.set(key, question);
-    }
-  });
-
-  return Array.from(unique.values());
+  return bank;
 }
 
 const QUESTION_BANK = buildQuestionBank();
@@ -216,43 +154,28 @@ function shuffle<T>(array: T[]) {
   return [...array].sort(() => Math.random() - 0.5);
 }
 
-function createGeneratedQuestions(count: number, startNumber: number) {
-  const generated: Question[] = [];
+async function getFreshQuestions(playerName: string) {
+  const storageKey = `seenQuestionIds-${playerName}`;
+  const savedSeenQuestions = await AsyncStorage.getItem(storageKey);
+  const savedSeenIds: string[] = savedSeenQuestions
+    ? JSON.parse(savedSeenQuestions)
+    : [];
 
-  for (let i = 0; i < count; i++) {
-    const uniqueNumber = startNumber + i + 1;
-    const skill = SKILLS[uniqueNumber % SKILLS.length];
-    const moment = MOMENTS[(uniqueNumber * 3) % MOMENTS.length];
-
-    generated.push({
-      id: `generated-${uniqueNumber}-${Date.now()}-${i}`,
-      text: `Reflection ${uniqueNumber}: During the ${moment}, what is one way you can improve your ${skill} next session?`,
-    });
-  }
-
-  return generated;
-}
-
-async function getFreshQuestions(seenQuestionIds: string[]) {
-  const availableQuestions = QUESTION_BANK.filter(
-    (question) => !seenQuestionIds.includes(question.id)
+  let availableQuestions = QUESTION_BANK.filter(
+    (question) => !savedSeenIds.includes(question.id)
   );
 
-  let nextQuestions = shuffle(availableQuestions).slice(0, QUESTIONS_PER_ENTRY);
-
-  if (nextQuestions.length < QUESTIONS_PER_ENTRY) {
-    const needed = QUESTIONS_PER_ENTRY - nextQuestions.length;
-    nextQuestions = [
-      ...nextQuestions,
-      ...createGeneratedQuestions(needed, seenQuestionIds.length),
-    ];
+  if (availableQuestions.length < QUESTIONS_PER_ENTRY) {
+    availableQuestions = QUESTION_BANK;
   }
+
+  const nextQuestions = shuffle(availableQuestions).slice(0, QUESTIONS_PER_ENTRY);
 
   const updatedSeenIds = Array.from(
-    new Set([...seenQuestionIds, ...nextQuestions.map((question) => question.id)])
+    new Set([...savedSeenIds, ...nextQuestions.map((question) => question.id)])
   );
 
-  await AsyncStorage.setItem("seenQuestionIds", JSON.stringify(updatedSeenIds));
+  await AsyncStorage.setItem(storageKey, JSON.stringify(updatedSeenIds));
 
   return {
     questions: nextQuestions,
@@ -261,21 +184,72 @@ async function getFreshQuestions(seenQuestionIds: string[]) {
 }
 
 export default function JournalScreen() {
+  const [accessCode, setAccessCode] = useState("");
+  const [activeAthlete, setActiveAthlete] = useState<AthleteAccess | null>(null);
+  const [unlocking, setUnlocking] = useState(false);
+  const [saving, setSaving] = useState(false);
+
   const [questions, setQuestions] = useState<Question[]>([]);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [seenQuestionIds, setSeenQuestionIds] = useState<string[]>([]);
 
+  const playerName = activeAthlete?.player_name || "Athlete";
+
   useEffect(() => {
-    loadQuestions();
-  }, []);
+    if (activeAthlete) {
+      loadQuestions();
+    }
+  }, [activeAthlete]);
+
+  const unlockJournal = async () => {
+    const cleanCode = accessCode.trim().toUpperCase();
+
+    if (!cleanCode) {
+      Alert.alert("Access Required", "Enter your athlete access code.");
+      return;
+    }
+
+    setUnlocking(true);
+
+    const { data, error } = await supabase
+      .from("athlete_profiles")
+      .select("id, player_name, access_code, status")
+      .eq("access_code", cleanCode)
+      .maybeSingle();
+
+    setUnlocking(false);
+
+    if (error) {
+      Alert.alert("Login Failed", error.message);
+      return;
+    }
+
+    if (!data) {
+      Alert.alert("Invalid Code", "Please enter the correct athlete access code.");
+      return;
+    }
+
+    if (data.status === "inactive") {
+      Alert.alert(
+        "Inactive Athlete",
+        "This athlete is currently inactive. Please contact Coach Rey."
+      );
+      return;
+    }
+
+    setActiveAthlete(data);
+  };
+
+  const lockJournal = () => {
+    setAccessCode("");
+    setActiveAthlete(null);
+    setQuestions([]);
+    setAnswers({});
+    setSeenQuestionIds([]);
+  };
 
   const loadQuestions = async () => {
-    const savedSeenQuestions = await AsyncStorage.getItem("seenQuestionIds");
-    const savedSeenIds: string[] = savedSeenQuestions
-      ? JSON.parse(savedSeenQuestions)
-      : [];
-
-    const fresh = await getFreshQuestions(savedSeenIds);
+    const fresh = await getFreshQuestions(playerName);
 
     setQuestions(fresh.questions);
     setSeenQuestionIds(fresh.seenIds);
@@ -289,6 +263,11 @@ export default function JournalScreen() {
   };
 
   const saveEntry = async () => {
+    if (!activeAthlete) {
+      Alert.alert("Access Required", "Enter your athlete code first.");
+      return;
+    }
+
     const hasAnswer = Object.values(answers).some(
       (answer) => answer.trim().length > 0
     );
@@ -298,37 +277,74 @@ export default function JournalScreen() {
       return;
     }
 
-    const savedEntries = await AsyncStorage.getItem("journalEntries");
-    const oldEntries: JournalEntry[] = savedEntries ? JSON.parse(savedEntries) : [];
+    setSaving(true);
 
-    const newEntry: JournalEntry = {
-      id: Date.now().toString(),
-      date: new Date().toLocaleDateString(),
-      questions,
-      answers,
-    };
+    const { error } = await supabase.from("journal_entries").insert([
+      {
+        player_name: playerName,
+        questions,
+        answers,
+      },
+    ]);
 
-    await AsyncStorage.setItem(
-      "journalEntries",
-      JSON.stringify([newEntry, ...oldEntries])
-    );
+    setSaving(false);
 
-    const fresh = await getFreshQuestions(seenQuestionIds);
+    if (error) {
+      Alert.alert("Save Failed", error.message);
+      return;
+    }
+
+    const fresh = await getFreshQuestions(playerName);
 
     setAnswers({});
     setQuestions(fresh.questions);
     setSeenQuestionIds(fresh.seenIds);
 
-    Alert.alert("Saved", "Two new soccer questions are ready.");
+    Alert.alert("Saved", "Journal saved. Two new soccer questions are ready.");
   };
 
   const getDifferentQuestions = async () => {
-    const fresh = await getFreshQuestions(seenQuestionIds);
+    const fresh = await getFreshQuestions(playerName);
 
     setAnswers({});
     setQuestions(fresh.questions);
     setSeenQuestionIds(fresh.seenIds);
   };
+
+  if (!activeAthlete) {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <View style={styles.lockContainer}>
+          <View style={styles.lockCard}>
+            <Text style={styles.smallTitle}>JOURNAL</Text>
+            <Text style={styles.title}>Athlete Journal</Text>
+            <Text style={styles.subtitle}>
+              Enter your athlete code to save your own private journal entries.
+            </Text>
+
+            <TextInput
+              value={accessCode}
+              onChangeText={(text) => setAccessCode(text.toUpperCase())}
+              placeholder="Enter access code"
+              placeholderTextColor="#64748b"
+              autoCapitalize="characters"
+              style={styles.lockInput}
+            />
+
+            <TouchableOpacity
+              style={[styles.saveButton, unlocking && styles.disabledButton]}
+              onPress={unlockJournal}
+              disabled={unlocking}
+            >
+              <Text style={styles.saveButtonText}>
+                {unlocking ? "Checking..." : "Open My Journal"}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -341,10 +357,16 @@ export default function JournalScreen() {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.header}>
-            <Text style={styles.screenTitle}>Journal</Text>
-            <Text style={styles.screenSubtitle}>
-              Reflect with two new soccer questions after every entry.
-            </Text>
+            <View>
+              <Text style={styles.screenTitle}>Journal</Text>
+              <Text style={styles.screenSubtitle}>
+                {playerName}'s private reflection space.
+              </Text>
+            </View>
+
+            <TouchableOpacity style={styles.switchButton} onPress={lockJournal}>
+              <Text style={styles.switchButtonText}>Switch</Text>
+            </TouchableOpacity>
           </View>
 
           <View style={styles.heroCard}>
@@ -392,9 +414,13 @@ export default function JournalScreen() {
               </View>
             ))}
 
-            <TouchableOpacity style={styles.saveButton} onPress={saveEntry}>
+            <TouchableOpacity
+              style={[styles.saveButton, saving && styles.disabledButton]}
+              onPress={saveEntry}
+              disabled={saving}
+            >
               <Text style={styles.saveButtonText}>
-                Save Entry + New Questions
+                {saving ? "Saving..." : "Save Entry + New Questions"}
               </Text>
             </TouchableOpacity>
 
@@ -429,29 +455,102 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background,
   },
+
   keyboard: {
     flex: 1,
   },
+
+  lockContainer: {
+    flex: 1,
+    justifyContent: "center",
+    padding: 22,
+  },
+
+  lockCard: {
+    backgroundColor: COLORS.card,
+    borderRadius: 30,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+
+  smallTitle: {
+    color: COLORS.green,
+    fontSize: 13,
+    fontWeight: "900",
+    letterSpacing: 2,
+    marginBottom: 10,
+  },
+
+  title: {
+    color: COLORS.text,
+    fontSize: 34,
+    fontWeight: "900",
+    lineHeight: 40,
+  },
+
+  subtitle: {
+    color: COLORS.muted,
+    fontSize: 16,
+    lineHeight: 23,
+    marginTop: 10,
+    marginBottom: 18,
+  },
+
+  lockInput: {
+    backgroundColor: "#061322",
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 18,
+    color: COLORS.text,
+    fontSize: 17,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    marginBottom: 14,
+  },
+
   container: {
     padding: 18,
     paddingBottom: 120,
   },
+
   header: {
     marginTop: 6,
     marginBottom: 16,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
+
   screenTitle: {
     color: COLORS.text,
     fontSize: 34,
     fontWeight: "900",
     letterSpacing: -0.8,
   },
+
   screenSubtitle: {
     color: COLORS.muted,
     fontSize: 15,
     marginTop: 4,
     lineHeight: 22,
   },
+
+  switchButton: {
+    backgroundColor: COLORS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+
+  switchButtonText: {
+    color: COLORS.text,
+    fontWeight: "900",
+    fontSize: 13,
+  },
+
   heroCard: {
     backgroundColor: COLORS.blue,
     borderRadius: 30,
@@ -462,17 +561,20 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
   },
+
   heroLabel: {
     color: "#dbeafe",
     fontSize: 14,
     fontWeight: "800",
     marginBottom: 8,
   },
+
   heroTitle: {
     color: COLORS.text,
     fontSize: 30,
     fontWeight: "900",
   },
+
   heroText: {
     color: "#dbeafe",
     fontSize: 15,
@@ -480,6 +582,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
     maxWidth: 220,
   },
+
   heroBadge: {
     width: 92,
     height: 92,
@@ -488,11 +591,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+
   heroBadgeText: {
     color: COLORS.text,
     fontSize: 42,
     fontWeight: "900",
   },
+
   card: {
     backgroundColor: COLORS.card,
     borderRadius: 28,
@@ -500,19 +605,23 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
     padding: 18,
   },
+
   cardHeader: {
     marginBottom: 16,
   },
+
   cardTitle: {
     color: COLORS.text,
     fontSize: 24,
     fontWeight: "900",
   },
+
   cardSub: {
     color: COLORS.muted,
     fontSize: 14,
     marginTop: 4,
   },
+
   questionBox: {
     backgroundColor: COLORS.cardSoft,
     borderRadius: 22,
@@ -521,11 +630,13 @@ const styles = StyleSheet.create({
     padding: 14,
     marginBottom: 14,
   },
+
   questionHeader: {
     flexDirection: "row",
     alignItems: "flex-start",
     marginBottom: 12,
   },
+
   numberCircle: {
     width: 30,
     height: 30,
@@ -536,11 +647,13 @@ const styles = StyleSheet.create({
     marginRight: 10,
     marginTop: 2,
   },
+
   numberText: {
     color: "#03111d",
     fontSize: 14,
     fontWeight: "900",
   },
+
   questionText: {
     color: COLORS.text,
     fontSize: 16,
@@ -548,6 +661,7 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     flex: 1,
   },
+
   input: {
     backgroundColor: "#020817",
     borderWidth: 1,
@@ -561,6 +675,7 @@ const styles = StyleSheet.create({
     textAlignVertical: "top",
     lineHeight: 22,
   },
+
   saveButton: {
     backgroundColor: COLORS.green,
     borderRadius: 22,
@@ -568,11 +683,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: 4,
   },
+
   saveButtonText: {
     color: "#03111d",
     fontSize: 16,
     fontWeight: "900",
   },
+
+  disabledButton: {
+    opacity: 0.6,
+  },
+
   secondaryButton: {
     borderWidth: 1,
     borderColor: COLORS.green,
@@ -581,6 +702,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: 12,
   },
+
   secondaryButtonText: {
     color: COLORS.green,
     fontSize: 15,
