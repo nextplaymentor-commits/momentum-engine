@@ -1,15 +1,22 @@
 import { useFocusEffect } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
 import {
+  Alert,
   SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
 
 import { supabase } from "../../lib/supabase";
+
+type AthleteAccess = {
+  code: string;
+  name: string;
+};
 
 type CheckIn = {
   id?: string;
@@ -31,6 +38,17 @@ type CheckIn = {
   created_at?: string;
 };
 
+const ATHLETE_ACCESS_CODES: AthleteAccess[] = [
+  { code: "NOAH2026", name: "Noah" },
+  { code: "AVY2026", name: "Avy" },
+  { code: "DREW2026", name: "Drew" },
+  { code: "JORDY2026", name: "Jordy" },
+  { code: "EMILIO2026", name: "Emilio" },
+  { code: "MAXI2026", name: "Maxi" },
+  { code: "RYAN2026", name: "Ryan" },
+  { code: "REYCOACH", name: "Rey" },
+];
+
 function formatAtlantaDate(dateString?: string) {
   if (!dateString) return "Saved Check-In";
 
@@ -46,17 +64,44 @@ function formatAtlantaDate(dateString?: string) {
 }
 
 export default function ProgressScreen() {
+  const [accessCode, setAccessCode] = useState("");
+  const [activeAthlete, setActiveAthlete] = useState<AthleteAccess | null>(null);
+
   const [checkIns, setCheckIns] = useState<CheckIn[]>([]);
   const [loading, setLoading] = useState(false);
-  const [selectedAthlete, setSelectedAthlete] = useState("All");
   const [lastSynced, setLastSynced] = useState("");
 
+  const unlockProgress = () => {
+    const cleanCode = accessCode.trim().toUpperCase();
+
+    const foundAthlete = ATHLETE_ACCESS_CODES.find(
+      (athlete) => athlete.code === cleanCode
+    );
+
+    if (!foundAthlete) {
+      Alert.alert("Invalid Code", "Please enter the correct athlete access code.");
+      return;
+    }
+
+    setActiveAthlete(foundAthlete);
+  };
+
+  const lockProgress = () => {
+    setAccessCode("");
+    setActiveAthlete(null);
+    setCheckIns([]);
+    setLastSynced("");
+  };
+
   const loadCheckIns = async () => {
+    if (!activeAthlete) return;
+
     setLoading(true);
 
     const { data, error } = await supabase
       .from("check_ins")
       .select("*")
+      .eq("player_name", activeAthlete.name)
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -80,46 +125,26 @@ export default function ProgressScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      loadCheckIns();
-    }, [])
+      if (activeAthlete) {
+        loadCheckIns();
+      }
+    }, [activeAthlete])
   );
 
-  const athleteNames = useMemo(() => {
-    const names = checkIns
-      .map((item) => item.player_name?.trim())
-      .filter(Boolean);
-
-    return ["All", ...Array.from(new Set(names))];
-  }, [checkIns]);
-
-  const filteredCheckIns = useMemo(() => {
-    if (selectedAthlete === "All") {
-      return checkIns;
-    }
-
-    return checkIns.filter(
-      (item) =>
-        item.player_name?.trim().toLowerCase() ===
-        selectedAthlete.trim().toLowerCase()
-    );
-  }, [checkIns, selectedAthlete]);
-
-  const totalCheckIns = filteredCheckIns.length;
+  const totalCheckIns = checkIns.length;
 
   const averageReadiness =
     totalCheckIns > 0
       ? Math.round(
-          filteredCheckIns.reduce(
-            (sum, item) => sum + Number(item.score || 0),
-            0
-          ) / totalCheckIns
+          checkIns.reduce((sum, item) => sum + Number(item.score || 0), 0) /
+            totalCheckIns
         )
       : 0;
 
   const averageConfidence =
     totalCheckIns > 0
       ? Math.round(
-          filteredCheckIns.reduce(
+          checkIns.reduce(
             (sum, item) => sum + Number(item.confidence || 0),
             0
           ) / totalCheckIns
@@ -129,7 +154,7 @@ export default function ProgressScreen() {
   const thisWeekCheckIns = useMemo(() => {
     const now = new Date();
 
-    return filteredCheckIns.filter((item) => {
+    return checkIns.filter((item) => {
       if (!item.created_at) return false;
 
       const created = new Date(item.created_at);
@@ -138,12 +163,12 @@ export default function ProgressScreen() {
 
       return diff <= 7;
     });
-  }, [filteredCheckIns]);
+  }, [checkIns]);
 
   const lastWeekCheckIns = useMemo(() => {
     const now = new Date();
 
-    return filteredCheckIns.filter((item) => {
+    return checkIns.filter((item) => {
       if (!item.created_at) return false;
 
       const created = new Date(item.created_at);
@@ -152,7 +177,7 @@ export default function ProgressScreen() {
 
       return diff > 7 && diff <= 14;
     });
-  }, [filteredCheckIns]);
+  }, [checkIns]);
 
   const thisWeekAvg =
     thisWeekCheckIns.length > 0
@@ -179,27 +204,23 @@ export default function ProgressScreen() {
   const avgSleep =
     totalCheckIns > 0
       ? Math.round(
-          filteredCheckIns.reduce(
-            (sum, item) => sum + Number(item.sleep || 0),
-            0
-          ) / totalCheckIns
+          checkIns.reduce((sum, item) => sum + Number(item.sleep || 0), 0) /
+            totalCheckIns
         )
       : 0;
 
   const avgStress =
     totalCheckIns > 0
       ? Math.round(
-          filteredCheckIns.reduce(
-            (sum, item) => sum + Number(item.stress || 0),
-            0
-          ) / totalCheckIns
+          checkIns.reduce((sum, item) => sum + Number(item.stress || 0), 0) /
+            totalCheckIns
         )
       : 0;
 
   const avgSoreness =
     totalCheckIns > 0
       ? Math.round(
-          filteredCheckIns.reduce(
+          checkIns.reduce(
             (sum, item) => sum + Number(item.soreness || 0),
             0
           ) / totalCheckIns
@@ -232,17 +253,45 @@ export default function ProgressScreen() {
       ? "Keep building strong daily habits."
       : "Complete more check-ins this week.";
 
-  const latestCheckIn = filteredCheckIns[0];
+  const latestCheckIn = checkIns[0];
+
+  if (!activeAthlete) {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <View style={styles.lockContainer}>
+          <View style={styles.lockCard}>
+            <Text style={styles.smallTitle}>PROGRESS</Text>
+            <Text style={styles.title}>Athlete Progress</Text>
+            <Text style={styles.subtitle}>
+              Enter your athlete code to view your own progress only.
+            </Text>
+
+            <TextInput
+              value={accessCode}
+              onChangeText={setAccessCode}
+              placeholder="Enter access code"
+              placeholderTextColor="#64748b"
+              autoCapitalize="characters"
+              style={styles.lockInput}
+            />
+
+            <TouchableOpacity style={styles.refreshButton} onPress={unlockProgress}>
+              <Text style={styles.refreshButtonText}>Open My Progress</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safe}>
       <ScrollView contentContainerStyle={styles.container}>
         <View style={styles.heroCard}>
           <Text style={styles.smallTitle}>PROGRESS</Text>
-          <Text style={styles.title}>Athlete Trends</Text>
+          <Text style={styles.title}>{activeAthlete.name}'s Trends</Text>
           <Text style={styles.subtitle}>
-            Select an athlete to view individual readiness, weekly trends, and
-            smart alerts.
+            Individual readiness, weekly trends, and smart alerts.
           </Text>
 
           <Text style={styles.syncText}>
@@ -255,32 +304,6 @@ export default function ProgressScreen() {
             {loading ? "Refreshing..." : "Refresh Progress"}
           </Text>
         </TouchableOpacity>
-
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Select Athlete</Text>
-
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            {athleteNames.map((name) => (
-              <TouchableOpacity
-                key={name}
-                style={[
-                  styles.athleteChip,
-                  selectedAthlete === name && styles.athleteChipActive,
-                ]}
-                onPress={() => setSelectedAthlete(name)}
-              >
-                <Text
-                  style={[
-                    styles.athleteChipText,
-                    selectedAthlete === name && styles.athleteChipTextActive,
-                  ]}
-                >
-                  {name}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
 
         <View style={styles.grid}>
           <View style={styles.statCard}>
@@ -308,17 +331,11 @@ export default function ProgressScreen() {
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>
-            {selectedAthlete === "All"
-              ? "Overall Weekly Report"
-              : `${selectedAthlete}'s Weekly Report`}
-          </Text>
+          <Text style={styles.cardTitle}>{activeAthlete.name}'s Weekly Report</Text>
 
           <Text style={styles.bodyText}>Total Check-Ins: {totalCheckIns}</Text>
           <Text style={styles.bodyText}>Avg Readiness: {averageReadiness}</Text>
-          <Text style={styles.bodyText}>
-            Avg Confidence: {averageConfidence}
-          </Text>
+          <Text style={styles.bodyText}>Avg Confidence: {averageConfidence}</Text>
           <Text style={styles.bodyText}>Biggest Issue: {biggestIssue}</Text>
           <Text style={styles.bodyText}>Weekly Focus: {weeklyFocus}</Text>
         </View>
@@ -345,14 +362,12 @@ export default function ProgressScreen() {
               )}
 
               {avgSleep <= 5 && (
-                <Text style={styles.alertText}>
-                  ⚠️ Low sleep trend detected.
-                </Text>
+                <Text style={styles.alertText}>⚠️ Low sleep trend detected.</Text>
               )}
 
               {averageConfidence <= 5 && (
                 <Text style={styles.alertText}>
-                  ⚠️ Confidence trending low — add encouragement.
+                  ⚠️ Confidence trending low — build small wins.
                 </Text>
               )}
 
@@ -360,9 +375,7 @@ export default function ProgressScreen() {
                 avgSleep > 5 &&
                 avgSoreness < 7 &&
                 averageConfidence > 5 && (
-                  <Text style={styles.goodText}>
-                    ✅ Trending well this week.
-                  </Text>
+                  <Text style={styles.goodText}>✅ Trending well this week.</Text>
                 )}
             </>
           )}
@@ -374,10 +387,6 @@ export default function ProgressScreen() {
 
             <Text style={styles.dateText}>
               {formatAtlantaDate(latestCheckIn.created_at)}
-            </Text>
-
-            <Text style={styles.bodyText}>
-              Athlete: {latestCheckIn.player_name}
             </Text>
 
             <Text style={styles.bodyText}>
@@ -403,6 +412,10 @@ export default function ProgressScreen() {
             </Text>
           </View>
         )}
+
+        <TouchableOpacity style={styles.lockAgainButton} onPress={lockProgress}>
+          <Text style={styles.lockAgainText}>Switch Athlete</Text>
+        </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   );
@@ -412,6 +425,33 @@ const styles = StyleSheet.create({
   safe: {
     flex: 1,
     backgroundColor: "#04111f",
+  },
+
+  lockContainer: {
+    flex: 1,
+    justifyContent: "center",
+    padding: 22,
+  },
+
+  lockCard: {
+    backgroundColor: "#0b182b",
+    borderRadius: 30,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: "#1f3555",
+  },
+
+  lockInput: {
+    backgroundColor: "#061322",
+    borderWidth: 1,
+    borderColor: "#1f3555",
+    borderRadius: 18,
+    color: "#ffffff",
+    fontSize: 17,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    marginTop: 18,
+    marginBottom: 14,
   },
 
   container: {
@@ -487,31 +527,6 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
 
-  athleteChip: {
-    backgroundColor: "#061322",
-    borderWidth: 1,
-    borderColor: "#1f3555",
-    borderRadius: 999,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    marginRight: 10,
-  },
-
-  athleteChipActive: {
-    backgroundColor: "#2dd4bf",
-    borderColor: "#2dd4bf",
-  },
-
-  athleteChipText: {
-    color: "#dbeafe",
-    fontSize: 14,
-    fontWeight: "900",
-  },
-
-  athleteChipTextActive: {
-    color: "#03111d",
-  },
-
   grid: {
     flexDirection: "row",
     gap: 10,
@@ -567,5 +582,19 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "800",
     marginBottom: 10,
+  },
+
+  lockAgainButton: {
+    borderWidth: 1,
+    borderColor: "#fbbf24",
+    borderRadius: 18,
+    paddingVertical: 15,
+    alignItems: "center",
+  },
+
+  lockAgainText: {
+    color: "#fbbf24",
+    fontSize: 16,
+    fontWeight: "900",
   },
 });
