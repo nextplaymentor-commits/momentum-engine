@@ -1,13 +1,14 @@
 import { useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
 import {
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Alert,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 import { supabase } from "../../lib/supabase";
@@ -86,15 +87,76 @@ export default function AthletesScreen() {
     loadProfiles();
   };
 
+  const deleteAthlete = async (id?: string) => {
+    if (!id) return;
+
+    Alert.alert(
+      "Delete Athlete",
+      "Are you sure you want to remove this athlete?",
+      [
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            const { error } = await supabase
+              .from("athlete_profiles")
+              .delete()
+              .eq("id", id);
+
+            if (error) {
+              alert(error.message);
+              return;
+            }
+
+            loadProfiles();
+          },
+        },
+      ]
+    );
+  };
+
+  const clearAllAthletes = async () => {
+    Alert.alert(
+      "Clear All Athletes",
+      "This will remove every athlete from your athlete tab. Are you sure?",
+      [
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
+        {
+          text: "Clear All",
+          style: "destructive",
+          onPress: async () => {
+            const { error } = await supabase
+              .from("athlete_profiles")
+              .delete()
+              .not("id", "is", null);
+
+            if (error) {
+              alert(error.message);
+              return;
+            }
+
+            setProfiles([]);
+            alert("All athletes cleared!");
+          },
+        },
+      ]
+    );
+  };
+
   return (
     <SafeAreaView style={styles.safe}>
       <ScrollView contentContainerStyle={styles.container}>
         <View style={styles.heroCard}>
           <Text style={styles.smallTitle}>ATHLETES</Text>
 
-          <Text style={styles.title}>
-            Athlete Profiles
-          </Text>
+          <Text style={styles.title}>Athlete Profiles</Text>
 
           <Text style={styles.subtitle}>
             Add and manage athlete information for Momentum Engine.
@@ -102,9 +164,7 @@ export default function AthletesScreen() {
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>
-            Add Athlete
-          </Text>
+          <Text style={styles.cardTitle}>Add Athlete</Text>
 
           <TextInput
             value={playerName}
@@ -155,54 +215,50 @@ export default function AthletesScreen() {
             style={styles.input}
           />
 
-          <TouchableOpacity
-            style={styles.button}
-            onPress={saveProfile}
-          >
-            <Text style={styles.buttonText}>
-              Save Athlete
-            </Text>
+          <TouchableOpacity style={styles.button} onPress={saveProfile}>
+            <Text style={styles.buttonText}>Save Athlete</Text>
           </TouchableOpacity>
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>
-            Current Athletes
-          </Text>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.cardTitle}>Current Athletes</Text>
+
+            {profiles.length > 0 && (
+              <TouchableOpacity
+                style={styles.clearButton}
+                onPress={clearAllAthletes}
+              >
+                <Text style={styles.clearButtonText}>Clear All</Text>
+              </TouchableOpacity>
+            )}
+          </View>
 
           {profiles.length === 0 ? (
-            <Text style={styles.bodyText}>
-              No athletes added yet.
-            </Text>
+            <Text style={styles.bodyText}>No athletes added yet.</Text>
           ) : (
             profiles.map((item, index) => (
-              <View
-                key={item.id || index}
-                style={styles.profileCard}
-              >
-                <Text style={styles.profileName}>
-                  {item.player_name}
-                </Text>
+              <View key={item.id || index} style={styles.profileCard}>
+                <Text style={styles.profileName}>{item.player_name}</Text>
 
-                <Text style={styles.bodyText}>
-                  Age: {item.age}
-                </Text>
+                <Text style={styles.bodyText}>Age: {item.age}</Text>
 
-                <Text style={styles.bodyText}>
-                  Position: {item.position}
-                </Text>
+                <Text style={styles.bodyText}>Position: {item.position}</Text>
 
-                <Text style={styles.bodyText}>
-                  Goal: {item.goal}
-                </Text>
+                <Text style={styles.bodyText}>Goal: {item.goal}</Text>
 
-                <Text style={styles.bodyText}>
-                  Level: {item.level}
-                </Text>
+                <Text style={styles.bodyText}>Level: {item.level}</Text>
 
                 <Text style={styles.bodyText}>
                   Parent: {item.parent_contact}
                 </Text>
+
+                <TouchableOpacity
+                  style={styles.deleteButton}
+                  onPress={() => deleteAthlete(item.id)}
+                >
+                  <Text style={styles.deleteButtonText}>Remove Athlete</Text>
+                </TouchableOpacity>
               </View>
             ))
           )}
@@ -263,11 +319,17 @@ const styles = StyleSheet.create({
     marginBottom: 18,
   },
 
+  sectionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+
   cardTitle: {
     color: "#ffffff",
     fontSize: 22,
     fontWeight: "900",
-    marginBottom: 16,
   },
 
   input: {
@@ -296,6 +358,19 @@ const styles = StyleSheet.create({
     fontWeight: "900",
   },
 
+  clearButton: {
+    backgroundColor: "#7f1d1d",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+
+  clearButtonText: {
+    color: "#ffffff",
+    fontSize: 13,
+    fontWeight: "900",
+  },
+
   profileCard: {
     backgroundColor: "#061322",
     borderRadius: 20,
@@ -316,5 +391,19 @@ const styles = StyleSheet.create({
     color: "#dbeafe",
     fontSize: 15,
     lineHeight: 23,
+  },
+
+  deleteButton: {
+    backgroundColor: "#7f1d1d",
+    borderRadius: 14,
+    paddingVertical: 12,
+    alignItems: "center",
+    marginTop: 14,
+  },
+
+  deleteButtonText: {
+    color: "#ffffff",
+    fontWeight: "900",
+    fontSize: 14,
   },
 });
