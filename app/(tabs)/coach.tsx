@@ -1,6 +1,7 @@
 import { useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import {
+  Alert,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -54,6 +55,10 @@ export default function CoachScreen() {
   const [checkIns, setCheckIns] = useState<CheckIn[]>([]);
   const [loading, setLoading] = useState(false);
   const [lastSynced, setLastSynced] = useState("");
+
+  const [selectedAthlete, setSelectedAthlete] = useState("All");
+  const [noteText, setNoteText] = useState("");
+  const [focusArea, setFocusArea] = useState("");
 
   const loadCheckIns = async () => {
     setLoading(true);
@@ -125,21 +130,67 @@ export default function CoachScreen() {
     }, {} as Record<string, CheckIn>)
   );
 
+  const athleteNames = [
+    "All",
+    ...Array.from(new Set(latestCheckIns.map((item) => item.player_name))),
+  ];
+
+  const visibleCheckIns =
+    selectedAthlete === "All"
+      ? latestCheckIns
+      : latestCheckIns.filter((item) => item.player_name === selectedAthlete);
+
   const totalAthletes = latestCheckIns.length;
 
   const averageReadiness =
-    latestCheckIns.length > 0
+    visibleCheckIns.length > 0
       ? Math.round(
-          latestCheckIns.reduce(
-            (sum, item) => sum + Number(item.score || 0),
-            0
-          ) / latestCheckIns.length
+          visibleCheckIns.reduce((sum, item) => sum + Number(item.score || 0), 0) /
+            visibleCheckIns.length
         )
       : 0;
 
-  const highRiskCount = latestCheckIns.filter(
+  const highRiskCount = visibleCheckIns.filter(
     (item) => item.risk_text === "High Risk"
   ).length;
+
+  const sorenessAlerts = visibleCheckIns.filter(
+    (item) => Number(item.soreness || 0) >= 7
+  );
+
+  const lowReadinessAlerts = visibleCheckIns.filter(
+    (item) => Number(item.score || 0) < 60
+  );
+
+  const saveCoachNote = async () => {
+    if (selectedAthlete === "All") {
+      Alert.alert("Pick Athlete", "Select one athlete before saving a note.");
+      return;
+    }
+
+    if (!noteText.trim()) {
+      Alert.alert("Add Note", "Write a coach note first.");
+      return;
+    }
+
+    const { error } = await supabase.from("coach_notes").insert([
+      {
+        player_name: selectedAthlete,
+        note: noteText.trim(),
+        focus_area: focusArea.trim(),
+        is_private: true,
+      },
+    ]);
+
+    if (error) {
+      Alert.alert("Note Failed", error.message);
+      return;
+    }
+
+    setNoteText("");
+    setFocusArea("");
+    Alert.alert("Coach Note Saved", `Private note saved for ${selectedAthlete}.`);
+  };
 
   if (!unlocked) {
     return (
@@ -168,7 +219,7 @@ export default function CoachScreen() {
                 if (passcode === COACH_PASSCODE) {
                   setUnlocked(true);
                 } else {
-                  alert("Wrong passcode");
+                  Alert.alert("Wrong Passcode", "Try again.");
                   setPasscode("");
                 }
               }}
@@ -188,12 +239,45 @@ export default function CoachScreen() {
           <Text style={styles.smallTitle}>COACH DASHBOARD</Text>
           <Text style={styles.title}>Team Overview</Text>
           <Text style={styles.subtitle}>
-            Showing the newest check-in for each athlete in Atlanta time.
+            Locked coach view showing athlete check-ins, alerts, and private
+            notes.
           </Text>
 
           <Text style={styles.syncText}>
             {lastSynced ? `Last synced: ${lastSynced}` : "Not synced yet"}
           </Text>
+        </View>
+
+        <TouchableOpacity style={styles.refreshButton} onPress={loadCheckIns}>
+          <Text style={styles.refreshButtonText}>
+            {loading ? "Refreshing..." : "Refresh Check-Ins"}
+          </Text>
+        </TouchableOpacity>
+
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Select Athlete</Text>
+
+          <View style={styles.chipWrap}>
+            {athleteNames.map((name) => (
+              <TouchableOpacity
+                key={name}
+                style={[
+                  styles.chip,
+                  selectedAthlete === name && styles.chipSelected,
+                ]}
+                onPress={() => setSelectedAthlete(name)}
+              >
+                <Text
+                  style={[
+                    styles.chipText,
+                    selectedAthlete === name && styles.chipTextSelected,
+                  ]}
+                >
+                  {name}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
         </View>
 
         <View style={styles.grid}>
@@ -213,31 +297,76 @@ export default function CoachScreen() {
           </View>
         </View>
 
-        <TouchableOpacity style={styles.refreshButton} onPress={loadCheckIns}>
-          <Text style={styles.refreshButtonText}>
-            {loading ? "Refreshing..." : "Refresh Check-Ins"}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Smart Alerts</Text>
+
+          {sorenessAlerts.length === 0 && lowReadinessAlerts.length === 0 ? (
+            <Text style={styles.goodText}>✅ No major alerts right now.</Text>
+          ) : (
+            <>
+              {sorenessAlerts.map((item) => (
+                <Text key={`sore-${item.id}`} style={styles.alertText}>
+                  ⚠️ {item.player_name} soreness is high: {item.soreness}/10
+                </Text>
+              ))}
+
+              {lowReadinessAlerts.map((item) => (
+                <Text key={`low-${item.id}`} style={styles.alertText}>
+                  ⚠️ {item.player_name} readiness is low: {item.score}
+                </Text>
+              ))}
+            </>
+          )}
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Private Coach Note</Text>
+
+          <Text style={styles.bodyText}>
+            Select one athlete above, then save a private note.
           </Text>
-        </TouchableOpacity>
+
+          <TextInput
+            value={focusArea}
+            onChangeText={setFocusArea}
+            placeholder="Focus area: confidence, recovery, finishing..."
+            placeholderTextColor="#64748b"
+            style={styles.lockInput}
+          />
+
+          <TextInput
+            value={noteText}
+            onChangeText={setNoteText}
+            placeholder="Write private coach note..."
+            placeholderTextColor="#64748b"
+            multiline
+            style={[styles.lockInput, styles.noteInput]}
+          />
+
+          <TouchableOpacity style={styles.unlockButton} onPress={saveCoachNote}>
+            <Text style={styles.unlockButtonText}>Save Coach Note</Text>
+          </TouchableOpacity>
+        </View>
 
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Latest Athlete Check-Ins</Text>
 
           {loading ? (
             <Text style={styles.bodyText}>Loading athlete data...</Text>
-          ) : latestCheckIns.length === 0 ? (
+          ) : visibleCheckIns.length === 0 ? (
             <Text style={styles.bodyText}>
               No check-ins found yet. Once athletes complete readiness, they
               will show here.
             </Text>
           ) : (
-            latestCheckIns.map((item, index) => (
+            visibleCheckIns.map((item, index) => (
               <View key={item.id || index} style={styles.entryCard}>
                 <Text style={styles.entryDate}>
                   {formatAtlantaDate(item.created_at)}
                 </Text>
 
                 <View style={styles.entryTopRow}>
-                  <View>
+                  <View style={{ flex: 1 }}>
                     <Text style={styles.athleteName}>{item.player_name}</Text>
                     <Text style={styles.entryText}>
                       {item.position} • {item.day_type} / {item.training_load}
@@ -273,7 +402,10 @@ export default function CoachScreen() {
 
         <TouchableOpacity
           style={styles.lockAgainButton}
-          onPress={() => setUnlocked(false)}
+          onPress={() => {
+            setUnlocked(false);
+            setPasscode("");
+          }}
         >
           <Text style={styles.lockAgainText}>Lock Coach Dashboard</Text>
         </TouchableOpacity>
@@ -287,15 +419,18 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#04111f",
   },
+
   container: {
     padding: 20,
     paddingBottom: 120,
   },
+
   lockContainer: {
     flex: 1,
     justifyContent: "center",
     padding: 22,
   },
+
   lockCard: {
     backgroundColor: "#0b182b",
     borderRadius: 30,
@@ -303,44 +438,56 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#1f3555",
   },
+
   lockEmoji: {
     fontSize: 42,
     marginBottom: 12,
   },
+
   lockTitle: {
     color: "#ffffff",
     fontSize: 30,
     fontWeight: "900",
     marginBottom: 8,
   },
+
   lockSub: {
     color: "#9fb0c8",
     fontSize: 15,
     lineHeight: 22,
     marginBottom: 18,
   },
+
   lockInput: {
     backgroundColor: "#061322",
     borderWidth: 1,
     borderColor: "#1f3555",
     borderRadius: 18,
     color: "#ffffff",
-    fontSize: 18,
+    fontSize: 16,
     paddingHorizontal: 16,
     paddingVertical: 14,
     marginBottom: 14,
   },
+
+  noteInput: {
+    minHeight: 100,
+    textAlignVertical: "top",
+  },
+
   unlockButton: {
     backgroundColor: "#2dd4bf",
     borderRadius: 18,
     paddingVertical: 16,
     alignItems: "center",
   },
+
   unlockButtonText: {
     color: "#03111d",
     fontSize: 16,
     fontWeight: "900",
   },
+
   heroCard: {
     backgroundColor: "#0b182b",
     borderRadius: 30,
@@ -349,6 +496,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#1f3555",
   },
+
   smallTitle: {
     color: "#2dd4bf",
     fontSize: 13,
@@ -356,29 +504,34 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
     marginBottom: 10,
   },
+
   title: {
     color: "#ffffff",
     fontSize: 34,
     fontWeight: "900",
     lineHeight: 40,
   },
+
   subtitle: {
     color: "#9fb0c8",
     fontSize: 16,
     lineHeight: 23,
     marginTop: 10,
   },
+
   syncText: {
     color: "#fbbf24",
     fontSize: 13,
     fontWeight: "900",
     marginTop: 12,
   },
+
   grid: {
     flexDirection: "row",
     gap: 10,
     marginBottom: 12,
   },
+
   statCard: {
     flex: 1,
     backgroundColor: "#0f1d33",
@@ -387,12 +540,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#1f3555",
   },
+
   statNumber: {
     color: "#2dd4bf",
     fontSize: 30,
     fontWeight: "900",
     textAlign: "center",
   },
+
   statLabel: {
     color: "#cbd5e1",
     fontSize: 12,
@@ -400,6 +555,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginTop: 4,
   },
+
   refreshButton: {
     backgroundColor: "#2dd4bf",
     borderRadius: 18,
@@ -407,11 +563,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 18,
   },
+
   refreshButtonText: {
     color: "#03111d",
     fontSize: 15,
     fontWeight: "900",
   },
+
   card: {
     backgroundColor: "#0b182b",
     borderRadius: 26,
@@ -420,18 +578,67 @@ const styles = StyleSheet.create({
     borderColor: "#1f3555",
     marginBottom: 18,
   },
+
   cardTitle: {
     color: "#ffffff",
     fontSize: 22,
     fontWeight: "900",
     marginBottom: 10,
   },
+
   bodyText: {
     color: "#dbeafe",
     fontSize: 15,
     lineHeight: 23,
-    marginBottom: 5,
+    marginBottom: 12,
   },
+
+  chipWrap: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+  },
+
+  chip: {
+    backgroundColor: "#061322",
+    borderWidth: 1,
+    borderColor: "#1f3555",
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginRight: 8,
+    marginBottom: 8,
+  },
+
+  chipSelected: {
+    backgroundColor: "#2dd4bf",
+    borderColor: "#2dd4bf",
+  },
+
+  chipText: {
+    color: "#dbeafe",
+    fontSize: 13,
+    fontWeight: "900",
+  },
+
+  chipTextSelected: {
+    color: "#03111d",
+  },
+
+  goodText: {
+    color: "#22c55e",
+    fontSize: 15,
+    fontWeight: "900",
+    lineHeight: 23,
+  },
+
+  alertText: {
+    color: "#fbbf24",
+    fontSize: 15,
+    fontWeight: "900",
+    lineHeight: 24,
+    marginBottom: 6,
+  },
+
   entryCard: {
     backgroundColor: "#061322",
     borderRadius: 20,
@@ -440,21 +647,25 @@ const styles = StyleSheet.create({
     borderColor: "#1f3555",
     marginTop: 12,
   },
+
   entryDate: {
     color: "#fbbf24",
     fontWeight: "900",
     marginBottom: 10,
   },
+
   entryTopRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
   },
+
   athleteName: {
     color: "#ffffff",
     fontSize: 20,
     fontWeight: "900",
   },
+
   scoreBadge: {
     backgroundColor: "#2dd4bf",
     width: 56,
@@ -462,12 +673,15 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     alignItems: "center",
     justifyContent: "center",
+    marginLeft: 10,
   },
+
   scoreBadgeText: {
     color: "#03111d",
     fontSize: 22,
     fontWeight: "900",
   },
+
   readinessText: {
     color: "#2dd4bf",
     fontSize: 15,
@@ -475,17 +689,20 @@ const styles = StyleSheet.create({
     marginTop: 12,
     marginBottom: 6,
   },
+
   entryText: {
     color: "#e5e7eb",
     fontSize: 14,
     lineHeight: 21,
   },
+
   coachNote: {
     color: "#dbeafe",
     fontSize: 14,
     lineHeight: 21,
     marginTop: 10,
   },
+
   lockAgainButton: {
     borderWidth: 1,
     borderColor: "#fbbf24",
@@ -493,6 +710,7 @@ const styles = StyleSheet.create({
     paddingVertical: 15,
     alignItems: "center",
   },
+
   lockAgainText: {
     color: "#fbbf24",
     fontSize: 16,
