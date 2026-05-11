@@ -36,7 +36,6 @@ type PlanResult = {
   fuelPlan: string;
   recoveryPlan: string;
   mindsetPlan: string;
-  journalPrompts: string[];
 };
 
 function clamp(num: number, min: number, max: number) {
@@ -109,7 +108,7 @@ function calculatePlan(
   }
 
   if (metrics.nutrition > 0 && metrics.nutrition <= 5) {
-    priorityActions.push("Nutrition: Get carbs, protein, fruit, and water in today.");
+    priorityActions.push("Nutrition: Eat a real meal today. Protein, carbs, fruit, and water.");
   }
 
   if (metrics.confidence > 0 && metrics.confidence <= 5) {
@@ -123,39 +122,39 @@ function calculatePlan(
 
   const positionFocus: Record<Position, string> = {
     Striker:
-      "Striker Focus: finishing, checking runs, timing runs behind, and staying aggressive in the box.",
+      "Striker Focus: 20 finishing reps — 10 one-touch, 5 across goal, 5 near-post. Add 5 checking runs and 5 runs behind.",
     Winger:
-      "Winger Focus: 1v1 attacking, first touch forward, crossing, cut-inside shots, and recovery runs.",
+      "Winger Focus: 10 1v1 moves, 10 crosses, 10 cut-inside shots, and 6 recovery runs.",
     Midfielder:
-      "Midfielder Focus: scanning, playing on the half-turn, wall passes, switches, and quick decisions.",
+      "Midfielder Focus: 30 scanning reps, 20 wall passes, 10 half-turn receives, and 10 switches of play.",
     Defender:
-      "Defender Focus: body shape, 1v1 defending, clearances, communication, and winning first contact.",
+      "Defender Focus: 15 body-shape reps, 10 clearances, 10 1v1 defending reps, and 10 communication commands.",
     Goalkeeper:
-      "Goalkeeper Focus: footwork, set position, catching, distribution, communication, and reactions.",
+      "Goalkeeper Focus: 20 catches, 15 footwork reps, 10 distribution passes, and 10 set-position reactions.",
   };
 
   let dayPlan = "";
 
   if (dayType === "Match") {
     dayPlan =
-      "Match Day Plan: arrive early, eat 2–3 hours before, visualize your first 3 actions, communicate early, play simple for the first 5 minutes, and win your first duel.";
+      "Match Day: arrive early, visualize your first 3 actions, play simple for the first 5 minutes, communicate early, and win your first duel.";
   }
 
   if (dayType === "Training") {
     dayPlan =
-      "Training Day Plan: focus on quality reps, strong habits, clean technique, communication, and one position-specific detail.";
+      "Training Day: focus on quality reps, strong habits, clean technique, communication, and one position-specific detail.";
   }
 
   if (dayType === "Off") {
     dayPlan =
-      "Off Day Plan: no hard training. Walk 15–20 minutes, stretch, hydrate, eat well, and mentally reset.";
+      "Off Day: no hard training. Walk 15–20 minutes, stretch, hydrate, eat well, and mentally reset.";
   }
 
   let loadPlan = "";
 
   if (trainingLoad === "Full") {
     loadPlan =
-      "Full Load: warm up properly, complete your main training block, push intensity, then cool down and recover.";
+      "Full Load: warm up properly, complete your main training block, push intensity, then cool down.";
   }
 
   if (trainingLoad === "Light") {
@@ -165,130 +164,84 @@ function calculatePlan(
 
   if (trainingLoad === "None") {
     loadPlan =
-      "No Load: recovery only. Stretch, walk, hydrate, journal, and prepare for the next session.";
+      "No Load: recovery only. Stretch, walk, hydrate, and prepare for the next session.";
   }
 
   let trainingPlan = `${positionFocus[position]} ${dayPlan} ${loadPlan}`;
 
   if (dayType === "Off") {
-    trainingPlan = `${dayPlan} ${loadPlan} If you touch a ball, keep it easy: juggling, light wall passes, or simple technical touches only.`;
+    trainingPlan = `${dayPlan} ${loadPlan} Optional ball work only: 5 minutes juggling or light wall passes. Nothing intense.`;
   }
 
-  let fuelPlan = "Eat balanced today: protein, carbs, fruit, vegetables, and water.";
+  let fuelPlan = "";
 
   if (dayType === "Match") {
     fuelPlan =
-      "Match Fuel: oatmeal, toast, eggs, chicken/rice, pasta, banana, yogurt, and water. Eat 2–3 hours before the game.";
+      "Breakfast: oatmeal + banana + eggs + water.\n\n2–3 hours before: chicken/rice, pasta with lean meat, or turkey sandwich + fruit.\n\n60 minutes before: banana, granola bar, or yogurt.\n\nAfter: protein + carbs within 60 minutes — chicken/rice, eggs/toast, smoothie, or chocolate milk.";
   }
 
   if (dayType === "Training") {
     fuelPlan =
-      "Training Fuel: carbs before training, protein after, fruit for energy, and water throughout the day.";
+      "Before training: banana, toast with peanut butter, oatmeal, or rice + eggs.\n\nAfter training: protein + carbs — chicken/rice, pasta/meat sauce, eggs/potatoes, or Greek yogurt + fruit.\n\nHydration: water before, during, and after training.";
   }
 
   if (dayType === "Off") {
     fuelPlan =
-      "Off Day Fuel: eat clean and recover. Protein, carbs, fruit, vegetables, and plenty of water. Do not skip meals.";
+      "Breakfast: eggs + oatmeal or toast + fruit.\n\nLunch: chicken/rice/vegetables or turkey sandwich + fruit.\n\nSnack: Greek yogurt, banana, trail mix, or smoothie.\n\nDinner: protein + carbs + vegetables. Keep meals clean and do not skip food.";
   }
 
   if (metrics.nutrition > 0 && metrics.nutrition <= 5) {
     fuelPlan =
-      "Nutrition Fix: get real food in today. Protein + carbs first: eggs/toast, chicken/rice, pasta, fruit, yogurt, or potatoes.";
+      "Nutrition Fix Today:\n\nMeal 1: eggs or chicken + rice, toast, potatoes, or oatmeal.\n\nSnack: banana, yogurt, fruit, or granola bar.\n\nMeal 2: protein + carbs again.\n\nGoal: do not skip carbs. Your body needs fuel to recover and perform.";
   }
 
-  let recoveryPlan = "Stretch calves, hamstrings, hips, and quads for 10 minutes. Hydrate and sleep on time.";
+  let recoveryPlan = "";
 
   if (dayType === "Match") {
     recoveryPlan =
-      "Post-Match Recovery: cooldown walk, stretch, hydrate, eat protein + carbs, and sleep early.";
+      "After match:\n\n1. Walk or light jog 5 minutes.\n2. Stretch hips, calves, hamstrings, and quads for 10 minutes.\n3. Drink water/electrolytes.\n4. Eat protein + carbs within 60 minutes.\n5. Sleep goal: 8+ hours.";
   }
 
   if (dayType === "Training") {
     recoveryPlan =
-      "Training Recovery: cooldown, stretch sore areas, hydrate, eat a recovery meal, and avoid extra work if your body feels heavy.";
+      "After training:\n\n1. Cooldown walk 5 minutes.\n2. Stretch sore areas for 10 minutes.\n3. Drink water.\n4. Eat a recovery meal.\n5. No extra hard work if legs feel heavy.";
   }
 
   if (dayType === "Off") {
     recoveryPlan =
-      "Off Day Recovery: mobility, hydration, light walk, mental reset, and no extra hard work.";
+      "Off day recovery:\n\n1. Walk 15–20 minutes.\n2. Stretch hips, calves, hamstrings, and quads for 10 minutes.\n3. Hydrate throughout the day.\n4. Light mobility only.\n5. Sleep goal: 8+ hours.";
   }
 
   if (metrics.soreness >= 7) {
     recoveryPlan =
-      "Soreness Recovery: take it seriously. Mobility, hydration, stretching, and no extra high-impact work today.";
+      "High soreness recovery:\n\n1. No extra sprinting or jumping.\n2. Stretch/mobility for 12–15 minutes.\n3. Hydrate with water/electrolytes.\n4. Eat protein + carbs.\n5. Sleep early and keep the next session controlled.";
   }
 
   if (metrics.stress >= 7) {
     recoveryPlan =
-      "Stress Recovery: keep today calm. Deep breathing, light movement, hydration, and early sleep.";
+      "High stress recovery:\n\n1. Keep training simple today.\n2. Take 5 slow breaths before starting.\n3. Walk 10–15 minutes.\n4. Stretch 10 minutes.\n5. Put the phone down early and protect sleep.";
   }
 
   let mindsetPlan = "";
 
   if (dayType === "Match") {
     mindsetPlan =
-      "Mindset: compete first, then settle in. Win your first action, communicate, and do not chase perfection.";
+      "Compete first, then settle in. Win your first action, communicate, and do not chase perfection.";
   }
 
   if (dayType === "Training") {
     mindsetPlan =
-      "Mindset: train with purpose. Pick one detail and attack it the whole session.";
+      "Train with purpose. Pick one detail and attack it the whole session.";
   }
 
   if (dayType === "Off") {
     mindsetPlan =
-      "Mindset: recovery is work too. Use today to reset your body and clear your mind.";
+      "Recovery is work too. Use today to reset your body and clear your mind.";
   }
 
   if (metrics.confidence > 0 && metrics.confidence <= 5) {
     mindsetPlan =
-      "Mindset: keep it simple. One good touch, one good pass, one good decision. Build confidence through action.";
-  }
-
-  const journalPrompts: string[] = [];
-
-  if (dayType === "Off") {
-    journalPrompts.push(
-      "What did my body need today?",
-      "What helped me recover mentally?",
-      "What can I do tonight to be ready for the next session?"
-    );
-  }
-
-  if (dayType === "Training") {
-    journalPrompts.push(
-      "What did I improve today?",
-      "What was hard about training?",
-      "What detail do I want to sharpen next time?"
-    );
-  }
-
-  if (dayType === "Match") {
-    journalPrompts.push(
-      "What moment changed the game today?",
-      "How was my confidence under pressure?",
-      "What would I do differently next match?"
-    );
-  }
-
-  if (position === "Striker") {
-    journalPrompts.push("Did I stay aggressive and make dangerous runs?");
-  }
-
-  if (position === "Winger") {
-    journalPrompts.push("Did I attack defenders with confidence?");
-  }
-
-  if (position === "Midfielder") {
-    journalPrompts.push("Did I scan before receiving the ball?");
-  }
-
-  if (position === "Defender") {
-    journalPrompts.push("Did I communicate and stay locked in defensively?");
-  }
-
-  if (position === "Goalkeeper") {
-    journalPrompts.push("Did I stay vocal, organized, and ready?");
+      "Keep it simple. One good touch, one good pass, one good decision. Build confidence through action.";
   }
 
   let coachFeedback = `${name}, follow the plan for your ${dayType.toLowerCase()} day.`;
@@ -315,7 +268,6 @@ function calculatePlan(
     fuelPlan,
     recoveryPlan,
     mindsetPlan,
-    journalPrompts,
   };
 }
 
@@ -598,17 +550,11 @@ export default function HomeScreen() {
 
               <PlanTile wide title="Training / Day Plan" text={plan.trainingPlan} />
 
-              <PlanTile title="Fuel" text={plan.fuelPlan} />
+              <PlanTile wide title="Fuel" text={plan.fuelPlan} />
 
-              <PlanTile title="Recovery" text={plan.recoveryPlan} />
+              <PlanTile wide title="Recovery" text={plan.recoveryPlan} />
 
               <PlanTile wide title="Mindset" text={plan.mindsetPlan} />
-
-              <PlanTile
-                wide
-                title="Journal Prompts"
-                text={plan.journalPrompts.join("\n\n")}
-              />
             </View>
           ) : (
             <View style={styles.emptyPlan}>
