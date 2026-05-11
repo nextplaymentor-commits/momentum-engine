@@ -40,6 +40,12 @@ type CheckIn = {
   created_at?: string;
 };
 
+type JournalEntry = {
+  id?: string;
+  player_name: string;
+  created_at?: string;
+};
+
 function formatAtlantaDate(dateString?: string) {
   if (!dateString) return "Saved Check-In";
 
@@ -54,13 +60,38 @@ function formatAtlantaDate(dateString?: string) {
   });
 }
 
+function getDaysAgo(dateString?: string) {
+  if (!dateString) return 999;
+
+  const now = new Date();
+  const created = new Date(dateString);
+
+  return (now.getTime() - created.getTime()) / (1000 * 60 * 60 * 24);
+}
+
+function getWeekDates() {
+  const now = new Date();
+  const weekEnd = new Date(now);
+  const weekStart = new Date(now);
+
+  weekStart.setDate(now.getDate() - 7);
+
+  return {
+    weekStart: weekStart.toISOString().split("T")[0],
+    weekEnd: weekEnd.toISOString().split("T")[0],
+  };
+}
+
 export default function ProgressScreen() {
   const [accessCode, setAccessCode] = useState("");
   const [activeAthlete, setActiveAthlete] = useState<AthleteAccess | null>(null);
 
   const [checkIns, setCheckIns] = useState<CheckIn[]>([]);
+  const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
+
   const [loading, setLoading] = useState(false);
   const [unlocking, setUnlocking] = useState(false);
+  const [savingReport, setSavingReport] = useState(false);
   const [lastSynced, setLastSynced] = useState("");
 
   const playerName = activeAthlete?.player_name || "Athlete";
@@ -108,35 +139,52 @@ export default function ProgressScreen() {
     setAccessCode("");
     setActiveAthlete(null);
     setCheckIns([]);
+    setJournalEntries([]);
     setLastSynced("");
   };
 
-  const loadCheckIns = async () => {
+  const loadProgress = async () => {
     if (!activeAthlete) return;
 
     setLoading(true);
 
-    const { data, error } = await supabase
-      .from("check_ins")
-      .select("*")
-      .eq("player_name", activeAthlete.player_name)
-      .order("created_at", { ascending: false });
+    const [checkInRes, journalRes] = await Promise.all([
+      supabase
+        .from("check_ins")
+        .select("*")
+        .eq("player_name", activeAthlete.player_name)
+        .order("created_at", { ascending: false }),
 
-    if (error) {
-      console.log("Progress load error:", error.message);
+      supabase
+        .from("journal_entries")
+        .select("id, player_name, created_at")
+        .eq("player_name", activeAthlete.player_name)
+        .order("created_at", { ascending: false }),
+    ]);
+
+    if (checkInRes.error) {
+      console.log("Progress check-in load error:", checkInRes.error.message);
       setCheckIns([]);
     } else {
-      setCheckIns(data || []);
-      setLastSynced(
-        new Date().toLocaleString("en-US", {
-          timeZone: "America/New_York",
-          hour: "numeric",
-          minute: "2-digit",
-          second: "2-digit",
-          hour12: true,
-        })
-      );
+      setCheckIns(checkInRes.data || []);
     }
+
+    if (journalRes.error) {
+      console.log("Progress journal load error:", journalRes.error.message);
+      setJournalEntries([]);
+    } else {
+      setJournalEntries(journalRes.data || []);
+    }
+
+    setLastSynced(
+      new Date().toLocaleString("en-US", {
+        timeZone: "America/New_York",
+        hour: "numeric",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: true,
+      })
+    );
 
     setLoading(false);
   };
@@ -144,12 +192,27 @@ export default function ProgressScreen() {
   useFocusEffect(
     useCallback(() => {
       if (activeAthlete) {
-        loadCheckIns();
+        loadProgress();
       }
     }, [activeAthlete])
   );
 
   const totalCheckIns = checkIns.length;
+
+  const thisWeekCheckIns = useMemo(() => {
+    return checkIns.filter((item) => getDaysAgo(item.created_at) <= 7);
+  }, [checkIns]);
+
+  const lastWeekCheckIns = useMemo(() => {
+    return checkIns.filter((item) => {
+      const diff = getDaysAgo(item.created_at);
+      return diff > 7 && diff <= 14;
+    });
+  }, [checkIns]);
+
+  const thisWeekJournals = useMemo(() => {
+    return journalEntries.filter((item) => getDaysAgo(item.created_at) <= 7);
+  }, [journalEntries]);
 
   const averageReadiness =
     totalCheckIns > 0
@@ -168,34 +231,6 @@ export default function ProgressScreen() {
           ) / totalCheckIns
         )
       : 0;
-
-  const thisWeekCheckIns = useMemo(() => {
-    const now = new Date();
-
-    return checkIns.filter((item) => {
-      if (!item.created_at) return false;
-
-      const created = new Date(item.created_at);
-      const diff =
-        (now.getTime() - created.getTime()) / (1000 * 60 * 60 * 24);
-
-      return diff <= 7;
-    });
-  }, [checkIns]);
-
-  const lastWeekCheckIns = useMemo(() => {
-    const now = new Date();
-
-    return checkIns.filter((item) => {
-      if (!item.created_at) return false;
-
-      const created = new Date(item.created_at);
-      const diff =
-        (now.getTime() - created.getTime()) / (1000 * 60 * 60 * 24);
-
-      return diff > 7 && diff <= 14;
-    });
-  }, [checkIns]);
 
   const thisWeekAvg =
     thisWeekCheckIns.length > 0
@@ -245,6 +280,26 @@ export default function ProgressScreen() {
         )
       : 0;
 
+  const thisWeekSorenessAvg =
+    thisWeekCheckIns.length > 0
+      ? Math.round(
+          thisWeekCheckIns.reduce(
+            (sum, item) => sum + Number(item.soreness || 0),
+            0
+          ) / thisWeekCheckIns.length
+        )
+      : 0;
+
+  const thisWeekConfidenceAvg =
+    thisWeekCheckIns.length > 0
+      ? Math.round(
+          thisWeekCheckIns.reduce(
+            (sum, item) => sum + Number(item.confidence || 0),
+            0
+          ) / thisWeekCheckIns.length
+        )
+      : 0;
+
   const biggestIssue =
     totalCheckIns === 0
       ? "Not enough data"
@@ -270,6 +325,43 @@ export default function ProgressScreen() {
       : biggestIssue === "Consistency"
       ? "Keep building strong daily habits."
       : "Complete more check-ins this week.";
+
+  const coachSummary =
+    thisWeekCheckIns.length === 0
+      ? `${playerName} has not completed a check-in this week yet.`
+      : `${playerName} completed ${thisWeekCheckIns.length} check-in(s) this week with an average readiness of ${thisWeekAvg}. Main focus: ${weeklyFocus}`;
+
+  const saveWeeklyReport = async () => {
+    if (!activeAthlete) return;
+
+    const { weekStart, weekEnd } = getWeekDates();
+
+    setSavingReport(true);
+
+    const { error } = await supabase.from("weekly_reports").insert([
+      {
+        player_name: playerName,
+        week_start: weekStart,
+        week_end: weekEnd,
+        readiness_avg: thisWeekAvg,
+        soreness_avg: thisWeekSorenessAvg,
+        mood_avg: thisWeekConfidenceAvg,
+        checkins_completed: thisWeekCheckIns.length,
+        journal_entries_completed: thisWeekJournals.length,
+        coach_summary: coachSummary,
+        focus_area: biggestIssue,
+      },
+    ]);
+
+    setSavingReport(false);
+
+    if (error) {
+      Alert.alert("Report Failed", error.message);
+      return;
+    }
+
+    Alert.alert("Weekly Report Saved", `${playerName}'s weekly report was saved.`);
+  };
 
   const latestCheckIn = checkIns[0];
 
@@ -315,7 +407,8 @@ export default function ProgressScreen() {
           <Text style={styles.smallTitle}>PROGRESS</Text>
           <Text style={styles.title}>{playerName}'s Trends</Text>
           <Text style={styles.subtitle}>
-            Individual readiness, weekly trends, and smart alerts.
+            Individual readiness, weekly trends, journal completion, and smart
+            alerts.
           </Text>
 
           <Text style={styles.syncText}>
@@ -323,7 +416,7 @@ export default function ProgressScreen() {
           </Text>
         </View>
 
-        <TouchableOpacity style={styles.refreshButton} onPress={loadCheckIns}>
+        <TouchableOpacity style={styles.refreshButton} onPress={loadProgress}>
           <Text style={styles.refreshButtonText}>
             {loading ? "Refreshing..." : "Refresh Progress"}
           </Text>
@@ -357,11 +450,37 @@ export default function ProgressScreen() {
         <View style={styles.card}>
           <Text style={styles.cardTitle}>{playerName}'s Weekly Report</Text>
 
-          <Text style={styles.bodyText}>Total Check-Ins: {totalCheckIns}</Text>
-          <Text style={styles.bodyText}>Avg Readiness: {averageReadiness}</Text>
-          <Text style={styles.bodyText}>Avg Confidence: {averageConfidence}</Text>
+          <Text style={styles.bodyText}>
+            Check-Ins This Week: {thisWeekCheckIns.length}
+          </Text>
+
+          <Text style={styles.bodyText}>
+            Journals This Week: {thisWeekJournals.length}
+          </Text>
+
+          <Text style={styles.bodyText}>Avg Readiness: {thisWeekAvg}</Text>
+
+          <Text style={styles.bodyText}>
+            Avg Soreness: {thisWeekSorenessAvg}/10
+          </Text>
+
+          <Text style={styles.bodyText}>
+            Avg Confidence: {thisWeekConfidenceAvg}/10
+          </Text>
+
           <Text style={styles.bodyText}>Biggest Issue: {biggestIssue}</Text>
+
           <Text style={styles.bodyText}>Weekly Focus: {weeklyFocus}</Text>
+
+          <TouchableOpacity
+            style={[styles.reportButton, savingReport && styles.disabledButton]}
+            onPress={saveWeeklyReport}
+            disabled={savingReport}
+          >
+            <Text style={styles.reportButtonText}>
+              {savingReport ? "Saving Report..." : "Save Weekly Report"}
+            </Text>
+          </TouchableOpacity>
         </View>
 
         <View style={styles.card}>
@@ -395,10 +514,17 @@ export default function ProgressScreen() {
                 </Text>
               )}
 
+              {thisWeekJournals.length === 0 && (
+                <Text style={styles.alertText}>
+                  ⚠️ No journal entries this week — complete one reflection.
+                </Text>
+              )}
+
               {avgStress < 7 &&
                 avgSleep > 5 &&
                 avgSoreness < 7 &&
-                averageConfidence > 5 && (
+                averageConfidence > 5 &&
+                thisWeekJournals.length > 0 && (
                   <Text style={styles.goodText}>✅ Trending well this week.</Text>
                 )}
             </>
@@ -590,6 +716,20 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 24,
     marginBottom: 6,
+  },
+
+  reportButton: {
+    backgroundColor: "#2dd4bf",
+    borderRadius: 16,
+    paddingVertical: 14,
+    alignItems: "center",
+    marginTop: 14,
+  },
+
+  reportButtonText: {
+    color: "#03111d",
+    fontSize: 15,
+    fontWeight: "900",
   },
 
   alertText: {
