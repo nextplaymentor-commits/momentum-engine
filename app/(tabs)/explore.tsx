@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -27,7 +27,19 @@ type Athlete = {
   sleep?: number;
   readiness_label?: string;
   risk_text?: string;
+  created_at?: string;
 };
+
+const quickQuestions = [
+  "Recovery",
+  "Confidence",
+  "Nutrition",
+  "Training",
+  "Game Day",
+  "Mindset",
+  "College Soccer",
+  "Injury Check",
+];
 
 function getWeekStartDate() {
   const today = new Date();
@@ -37,15 +49,72 @@ function getWeekStartDate() {
   return monday.toISOString().split("T")[0];
 }
 
+function getQuickPrompt(category: string, athleteName?: string) {
+  const name = athleteName || "me";
+
+  const prompts: Record<string, string> = {
+    Recovery: `Based on my latest check-in, what should ${name} focus on for recovery today?`,
+    Confidence: `What should ${name} do today to build confidence?`,
+    Nutrition: `What should ${name} eat and drink today based on the latest check-in?`,
+    Training: `What should ${name} focus on in training today?`,
+    "Game Day": `What should ${name} focus on for game day?`,
+    Mindset: `What mindset cue should ${name} carry today?`,
+    "College Soccer": `What should ${name} do this week to prepare for college soccer?`,
+    "Injury Check": `${name} is feeling pain or discomfort. What should we do safely today?`,
+  };
+
+  return prompts[category] || "";
+}
+
+function buildTrendSummary(history: Athlete[]) {
+  if (!history.length) return "No recent history yet.";
+
+  const validScores = history.filter((item) => typeof item.score === "number");
+  const validSleep = history.filter((item) => typeof item.sleep === "number");
+  const validSoreness = history.filter((item) => typeof item.soreness === "number");
+  const validConfidence = history.filter((item) => typeof item.confidence === "number");
+
+  const avg = (items: Athlete[], key: keyof Athlete) => {
+    if (!items.length) return 0;
+    const total = items.reduce((sum, item) => sum + Number(item[key] || 0), 0);
+    return Math.round(total / items.length);
+  };
+
+  const latest = history[0];
+  const oldest = history[history.length - 1];
+
+  const scoreTrend =
+    typeof latest?.score === "number" && typeof oldest?.score === "number"
+      ? latest.score - oldest.score
+      : 0;
+
+  return `
+Recent check-ins: ${history.length}
+Average score: ${avg(validScores, "score")}
+Average sleep: ${avg(validSleep, "sleep")}/10
+Average soreness: ${avg(validSoreness, "soreness")}/10
+Average confidence: ${avg(validConfidence, "confidence")}/10
+Score trend: ${scoreTrend > 0 ? `up ${scoreTrend}` : scoreTrend < 0 ? `down ${Math.abs(scoreTrend)}` : "stable"}
+Latest readiness: ${latest?.readiness_label || "Unknown"}
+Latest risk: ${latest?.risk_text || "Unknown"}
+`;
+}
+
 export default function ExploreScreen() {
   const [question, setQuestion] = useState("");
   const [response, setResponse] = useState("");
+  const [coachNotes, setCoachNotes] = useState("");
   const [loading, setLoading] = useState(false);
 
   const [athletes, setAthletes] = useState<Athlete[]>([]);
   const [selectedAthlete, setSelectedAthlete] = useState<Athlete | null>(null);
+  const [athleteHistory, setAthleteHistory] = useState<Athlete[]>([]);
 
   const [questionsUsed, setQuestionsUsed] = useState(0);
+
+  const trendSummary = useMemo(() => {
+    return buildTrendSummary(athleteHistory);
+  }, [athleteHistory]);
 
   useEffect(() => {
     loadAthletes();
@@ -54,6 +123,7 @@ export default function ExploreScreen() {
   useEffect(() => {
     if (selectedAthlete) {
       loadUsage();
+      loadAthleteHistory(selectedAthlete.player_name);
       setResponse("");
       setQuestion("");
     }
@@ -84,6 +154,23 @@ export default function ExploreScreen() {
     if (uniqueAthletes.length > 0) {
       setSelectedAthlete(uniqueAthletes[0]);
     }
+  };
+
+  const loadAthleteHistory = async (playerName: string) => {
+    const { data, error } = await supabase
+      .from("check_ins")
+      .select("*")
+      .eq("player_name", playerName)
+      .order("created_at", { ascending: false })
+      .limit(7);
+
+    if (error) {
+      console.log("Athlete history load error:", error.message);
+      setAthleteHistory([]);
+      return;
+    }
+
+    setAthleteHistory((data || []) as Athlete[]);
   };
 
   const loadUsage = async () => {
@@ -188,6 +275,9 @@ export default function ExploreScreen() {
         body: JSON.stringify({
           question: question.trim(),
           athlete: selectedAthlete,
+          history: athleteHistory,
+          trendSummary,
+          coachNotes: coachNotes.trim(),
         }),
       });
 
@@ -213,6 +303,11 @@ export default function ExploreScreen() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleQuickQuestion = (category: string) => {
+    if (!selectedAthlete) return;
+    setQuestion(getQuickPrompt(category, selectedAthlete.player_name));
   };
 
   const questionsRemaining = Math.max(
@@ -270,6 +365,42 @@ export default function ExploreScreen() {
           <Text style={styles.usageText}>
             AI Questions Remaining This Week: {questionsRemaining}
           </Text>
+        </View>
+
+        {selectedAthlete && (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Athlete Trend Memory</Text>
+            <Text style={styles.bodyText}>{trendSummary}</Text>
+          </View>
+        )}
+
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Quick Ask</Text>
+
+          <View style={styles.quickGrid}>
+            {quickQuestions.map((item) => (
+              <TouchableOpacity
+                key={item}
+                style={styles.quickButton}
+                onPress={() => handleQuickQuestion(item)}
+              >
+                <Text style={styles.quickButtonText}>{item}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Coach Notes</Text>
+
+          <TextInput
+            value={coachNotes}
+            onChangeText={setCoachNotes}
+            placeholder="Private notes for Coach AI. Example: Ryan needs confidence after mistakes."
+            placeholderTextColor="#64748b"
+            multiline
+            style={styles.notesInput}
+          />
         </View>
 
         <View style={styles.card}>
@@ -451,6 +582,28 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
 
+  quickGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+  },
+
+  quickButton: {
+    backgroundColor: "#061322",
+    borderWidth: 1,
+    borderColor: "#2dd4bf",
+    borderRadius: 999,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    marginRight: 10,
+    marginBottom: 10,
+  },
+
+  quickButtonText: {
+    color: "#dbeafe",
+    fontWeight: "900",
+    fontSize: 13,
+  },
+
   input: {
     backgroundColor: "#061322",
     borderWidth: 1,
@@ -462,6 +615,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingVertical: 16,
     marginBottom: 16,
+    textAlignVertical: "top",
+  },
+
+  notesInput: {
+    backgroundColor: "#061322",
+    borderWidth: 1,
+    borderColor: "#1f3555",
+    borderRadius: 20,
+    color: "#ffffff",
+    fontSize: 16,
+    minHeight: 90,
+    paddingHorizontal: 18,
+    paddingVertical: 16,
     textAlignVertical: "top",
   },
 
