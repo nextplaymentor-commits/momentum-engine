@@ -11,6 +11,10 @@ import {
   View,
 } from "react-native";
 
+import {
+  clearCoachSession,
+  saveCoachSession,
+} from "../../lib/coachSession";
 import { supabase } from "../../lib/supabase";
 
 const COACH_PASSCODE = "1010";
@@ -166,6 +170,21 @@ export default function CoachScreen() {
     (item) => item.risk_text === "High Risk"
   ).length;
 
+  const unlockCoachDashboard = async () => {
+    if (passcode === COACH_PASSCODE) {
+      await saveCoachSession();
+      setUnlocked(true);
+    } else {
+      Alert.alert("Wrong passcode");
+    }
+  };
+
+  const lockCoachDashboard = async () => {
+    await clearCoachSession();
+    setUnlocked(false);
+    setPasscode("");
+  };
+
   const saveCoachNote = async () => {
     if (selectedAthlete === "All") {
       Alert.alert("Select Athlete", "Choose one athlete before saving a note.");
@@ -213,16 +232,7 @@ export default function CoachScreen() {
             style={styles.input}
           />
 
-          <TouchableOpacity
-            style={styles.button}
-            onPress={() => {
-              if (passcode === COACH_PASSCODE) {
-                setUnlocked(true);
-              } else {
-                Alert.alert("Wrong passcode");
-              }
-            }}
-          >
+          <TouchableOpacity style={styles.button} onPress={unlockCoachDashboard}>
             <Text style={styles.buttonText}>Unlock</Text>
           </TouchableOpacity>
         </View>
@@ -404,13 +414,7 @@ export default function CoachScreen() {
           ))}
         </View>
 
-        <TouchableOpacity
-          style={styles.lockButton}
-          onPress={() => {
-            setUnlocked(false);
-            setPasscode("");
-          }}
-        >
+        <TouchableOpacity style={styles.lockButton} onPress={lockCoachDashboard}>
           <Text style={styles.lockButtonText}>Lock Coach Dashboard</Text>
         </TouchableOpacity>
       </ScrollView>
