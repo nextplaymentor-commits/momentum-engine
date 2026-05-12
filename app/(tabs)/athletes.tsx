@@ -92,7 +92,7 @@ export default function AthletesScreen() {
 
     Alert.alert(
       "Athlete Added",
-      `${playerName.trim()} was added.\n\nAccess Code: ${finalAccessCode}`
+      `${playerName.trim()} was added successfully.`
     );
 
     setPlayerName("");
@@ -113,10 +113,7 @@ export default function AthletesScreen() {
       "Delete Athlete",
       "Are you sure you want to remove this athlete?",
       [
-        {
-          text: "Cancel",
-          style: "cancel",
-        },
+        { text: "Cancel", style: "cancel" },
         {
           text: "Delete",
           style: "destructive",
@@ -143,10 +140,7 @@ export default function AthletesScreen() {
       "Clear All Athletes",
       "This will remove every athlete from your athlete tab. Are you sure?",
       [
-        {
-          text: "Cancel",
-          style: "cancel",
-        },
+        { text: "Cancel", style: "cancel" },
         {
           text: "Clear All",
           style: "destructive",
@@ -319,10 +313,9 @@ export default function AthletesScreen() {
                   Parent: {item.parent_contact}
                 </Text>
 
-                <View style={styles.codeBox}>
-                  <Text style={styles.codeLabel}>Athlete Access Code</Text>
-                  <Text style={styles.codeText}>
-                    {item.access_code || "No code yet"}
+                <View style={styles.hiddenCodeBox}>
+                  <Text style={styles.hiddenCodeText}>
+                    Access code hidden for security
                   </Text>
                 </View>
 
@@ -508,28 +501,21 @@ const styles = StyleSheet.create({
     lineHeight: 23,
   },
 
-  codeBox: {
+  hiddenCodeBox: {
     backgroundColor: "#0b182b",
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#2dd4bf",
+    borderColor: "#334155",
     padding: 14,
     marginTop: 14,
     marginBottom: 12,
   },
 
-  codeLabel: {
-    color: "#9fb0c8",
-    fontSize: 12,
-    fontWeight: "900",
-    marginBottom: 4,
-  },
-
-  codeText: {
-    color: "#2dd4bf",
-    fontSize: 20,
-    fontWeight: "900",
-    letterSpacing: 1,
+  hiddenCodeText: {
+    color: "#94a3b8",
+    fontSize: 13,
+    fontWeight: "800",
+    fontStyle: "italic",
   },
 
   secondaryButton: {
