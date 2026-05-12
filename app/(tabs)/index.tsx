@@ -15,6 +15,7 @@ import {
   getAthleteSession,
   saveAthleteSession,
 } from "../../lib/athleteSession";
+import { getMomentumRecommendations } from "../../lib/recommendations";
 import { supabase } from "../../lib/supabase";
 
 type Position = "Striker" | "Winger" | "Midfielder" | "Defender" | "Goalkeeper";
@@ -71,6 +72,18 @@ function normalizePosition(position?: string): Position {
   return "Midfielder";
 }
 
+function getDefaultMetrics(): MetricState {
+  return {
+    sleep: 5,
+    energy: 5,
+    focus: 5,
+    nutrition: 5,
+    confidence: 5,
+    stress: 5,
+    soreness: 5,
+  };
+}
+
 function calculatePlan(
   playerName: string,
   position: Position,
@@ -109,14 +122,14 @@ function calculatePlan(
   if (
     metrics.stress >= 8 ||
     metrics.soreness >= 8 ||
-    (metrics.sleep > 0 && metrics.sleep <= 4) ||
+    metrics.sleep <= 4 ||
     score < 60
   ) {
     riskText = "High Risk";
   } else if (
     metrics.stress >= 5 ||
     metrics.soreness >= 5 ||
-    (metrics.sleep > 0 && metrics.sleep <= 6) ||
+    metrics.sleep <= 6 ||
     score < 75
   ) {
     riskText = "Moderate Risk";
@@ -136,23 +149,18 @@ function calculatePlan(
     );
   }
 
-  if (metrics.sleep > 0 && metrics.sleep <= 6) {
+  if (metrics.sleep <= 6) {
     priorityActions.push("Sleep: Protect recovery tonight. No extra work late.");
   }
 
-  if (metrics.nutrition > 0 && metrics.nutrition <= 5) {
+  if (metrics.nutrition <= 5) {
     priorityActions.push(
       "Nutrition: Eat a real meal today. Protein, carbs, fruit, and water."
     );
   }
 
-  if (metrics.confidence > 0 && metrics.confidence <= 5) {
+  if (metrics.confidence <= 5) {
     priorityActions.push("Confidence: Focus on one small win early.");
-  }
-
-  if (priorityActions.length === 0) {
-    priorityActions.push("Body: You are in a solid spot. Keep the standard high.");
-    priorityActions.push("Mindset: Start sharp and stay locked into the details.");
   }
 
   const positionFocus: Record<Position, string> = {
@@ -212,34 +220,34 @@ function calculatePlan(
 
   if (dayType === "Match") {
     fuelPlan =
-      "Breakfast: oatmeal + banana + eggs + water.\n\n2–3 hours before: chicken/rice, pasta with lean meat, or turkey sandwich + fruit.\n\n60 minutes before: banana, granola bar, or yogurt.\n\nAfter: protein + carbs within 60 minutes — chicken/rice, eggs/toast, smoothie, or chocolate milk.";
+      "Breakfast: oatmeal + banana + eggs + water.\n\n2–3 hours before: chicken/rice, pasta with lean meat, or turkey sandwich + fruit.\n\n60 minutes before: banana, granola bar, or yogurt.\n\nAfter: protein + carbs within 45 minutes — chicken/rice, eggs/toast, smoothie, or chocolate milk.\n\nHydration: drink 24–32 oz before noon and add electrolytes after the match.";
   }
 
   if (dayType === "Training") {
     fuelPlan =
-      "Before training: banana, toast with peanut butter, oatmeal, or rice + eggs.\n\nAfter training: protein + carbs — chicken/rice, pasta/meat sauce, eggs/potatoes, or Greek yogurt + fruit.\n\nHydration: water before, during, and after training.";
+      "Before training: banana, toast with peanut butter, oatmeal, or rice + eggs.\n\nAfter training: protein + carbs within 30–45 minutes — chicken/rice, pasta/meat sauce, eggs/potatoes, or Greek yogurt + fruit.\n\nHydration: drink 24 oz before noon and 12–16 oz after training.";
   }
 
   if (dayType === "Off") {
     fuelPlan =
-      "Breakfast: eggs + oatmeal or toast + fruit.\n\nLunch: chicken/rice/vegetables or turkey sandwich + fruit.\n\nSnack: Greek yogurt, banana, trail mix, or smoothie.\n\nDinner: protein + carbs + vegetables. Keep meals clean and do not skip food.";
+      "Breakfast: eggs + oatmeal or toast + fruit.\n\nLunch: chicken/rice/vegetables or turkey sandwich + fruit.\n\nSnack: Greek yogurt, banana, trail mix, or smoothie.\n\nDinner: protein + carbs + vegetables. Keep meals clean and do not skip food.\n\nHydration: aim for 60–70 oz today.";
   }
 
-  if (metrics.nutrition > 0 && metrics.nutrition <= 5) {
+  if (metrics.nutrition <= 5) {
     fuelPlan =
-      "Nutrition Fix Today:\n\nMeal 1: eggs or chicken + rice, toast, potatoes, or oatmeal.\n\nSnack: banana, yogurt, fruit, or granola bar.\n\nMeal 2: protein + carbs again.\n\nGoal: do not skip carbs. Your body needs fuel to recover and perform.";
+      "Nutrition Fix Today:\n\nMeal 1: eggs or chicken + rice, toast, potatoes, or oatmeal.\n\nSnack: banana, yogurt, fruit, or granola bar.\n\nMeal 2: protein + carbs again.\n\nGoal: do not skip carbs. Your body needs fuel to recover and perform.\n\nHydration: finish 20–24 oz before lunch.";
   }
 
   let recoveryPlan = "";
 
   if (dayType === "Match") {
     recoveryPlan =
-      "After match:\n\n1. Walk or light jog 5 minutes.\n2. Stretch hips, calves, hamstrings, and quads for 10 minutes.\n3. Drink water/electrolytes.\n4. Eat protein + carbs within 60 minutes.\n5. Sleep goal: 8+ hours.";
+      "After match:\n\n1. Walk or light jog 5 minutes.\n2. Stretch hips, calves, hamstrings, and quads for 10 minutes.\n3. Drink 16–20 oz water/electrolytes within 30 minutes.\n4. Eat protein + carbs within 45 minutes.\n5. Sleep goal: 8+ hours.";
   }
 
   if (dayType === "Training") {
     recoveryPlan =
-      "After training:\n\n1. Cooldown walk 5 minutes.\n2. Stretch sore areas for 10 minutes.\n3. Drink water.\n4. Eat a recovery meal.\n5. No extra hard work if legs feel heavy.";
+      "After training:\n\n1. Cooldown walk 5 minutes.\n2. Stretch sore areas for 10 minutes.\n3. Drink 12–16 oz water after training.\n4. Eat a recovery meal within 30–45 minutes.\n5. No extra hard work if legs feel heavy.";
   }
 
   if (dayType === "Off") {
@@ -249,7 +257,7 @@ function calculatePlan(
 
   if (metrics.soreness >= 7) {
     recoveryPlan =
-      "High soreness recovery:\n\n1. No extra sprinting or jumping.\n2. Stretch/mobility for 12–15 minutes.\n3. Hydrate with water/electrolytes.\n4. Eat protein + carbs.\n5. Sleep early and keep the next session controlled.";
+      "High soreness recovery:\n\n1. No extra sprinting or jumping.\n2. Stretch/mobility for 12–15 minutes.\n3. Drink 24 oz before noon and add electrolytes after training.\n4. Eat protein + carbs.\n5. Sleep early and keep the next session controlled.";
   }
 
   if (metrics.stress >= 7) {
@@ -274,7 +282,7 @@ function calculatePlan(
       "Recovery is work too. Use today to reset your body and clear your mind.";
   }
 
-  if (metrics.confidence > 0 && metrics.confidence <= 5) {
+  if (metrics.confidence <= 5) {
     mindsetPlan =
       "Keep it simple. One good touch, one good pass, one good decision. Build confidence through action.";
   }
@@ -293,12 +301,38 @@ function calculatePlan(
     coachFeedback = `${name}, your readiness is low today. Be smart with your body and prioritize recovery.`;
   }
 
+  const smartRecommendations = getMomentumRecommendations({
+    sleep: metrics.sleep,
+    energy: metrics.energy,
+    soreness: metrics.soreness,
+    stress: metrics.stress,
+    confidence: metrics.confidence,
+    focus: metrics.focus,
+    nutrition: metrics.nutrition,
+    dayType:
+      dayType === "Match"
+        ? "matchday"
+        : dayType === "Training"
+        ? "training"
+        : "offday",
+    load:
+      trainingLoad === "Full"
+        ? "high"
+        : trainingLoad === "Light"
+        ? "medium"
+        : "low",
+  });
+
+  priorityActions.push(...smartRecommendations);
+
+  const cleanPriorityActions = [...new Set(priorityActions)].slice(0, 8);
+
   return {
     score,
     readinessLabel,
     coachFeedback,
     riskText,
-    priorityActions: priorityActions.slice(0, 4),
+    priorityActions: cleanPriorityActions,
     trainingPlan,
     fuelPlan,
     recoveryPlan,
@@ -390,15 +424,7 @@ export default function HomeScreen() {
   const [isUnlocking, setIsUnlocking] = useState(false);
   const [isCheckingSavedSession, setIsCheckingSavedSession] = useState(true);
 
-  const [metrics, setMetrics] = useState<MetricState>({
-    sleep: 0,
-    energy: 0,
-    focus: 0,
-    nutrition: 0,
-    confidence: 0,
-    stress: 0,
-    soreness: 0,
-  });
+  const [metrics, setMetrics] = useState<MetricState>(getDefaultMetrics());
 
   const playerName = activeAthlete?.player_name || "Athlete";
 
@@ -456,6 +482,7 @@ export default function HomeScreen() {
     setActiveAthlete(data);
     setPosition(normalizePosition(data.position));
     setHasChecked(false);
+    setMetrics(getDefaultMetrics());
     await saveAthleteSession(data);
   };
 
@@ -465,15 +492,7 @@ export default function HomeScreen() {
     setAccessCode("");
     setActiveAthlete(null);
     setHasChecked(false);
-    setMetrics({
-      sleep: 0,
-      energy: 0,
-      focus: 0,
-      nutrition: 0,
-      confidence: 0,
-      stress: 0,
-      soreness: 0,
-    });
+    setMetrics(getDefaultMetrics());
   };
 
   const livePlan = useMemo(() => {
@@ -614,7 +633,7 @@ export default function HomeScreen() {
             <Text style={styles.readinessSub}>
               {plan
                 ? `${plan.riskText} — follow today’s plan.`
-                : "Start at 0. Adjust your check-in, then tap Check Readiness."}
+                : "Start at 5. Adjust your check-in, then tap Check Readiness."}
             </Text>
           </View>
 
@@ -715,8 +734,11 @@ export default function HomeScreen() {
           {plan ? (
             <View style={styles.planGrid}>
               <PlanTile wide title="Coach Note" text={plan.coachFeedback} />
-              <PlanTile title="Priority 1" text={plan.priorityActions[0]} />
-              <PlanTile title="Priority 2" text={plan.priorityActions[1]} />
+              <PlanTile title="Priority 1" text={plan.priorityActions[0] || "Stay locked in today."} />
+              <PlanTile title="Priority 2" text={plan.priorityActions[1] || "Control what you can control."} />
+              <PlanTile title="Priority 3" text={plan.priorityActions[2] || "Keep your habits sharp."} />
+              <PlanTile title="Priority 4" text={plan.priorityActions[3] || "Finish the day strong."} />
+              <PlanTile wide title="Smart Recommendations" text={plan.priorityActions.slice(4).join("\n\n")} />
               <PlanTile wide title="Training / Day Plan" text={plan.trainingPlan} />
               <PlanTile wide title="Fuel" text={plan.fuelPlan} />
               <PlanTile wide title="Recovery" text={plan.recoveryPlan} />
