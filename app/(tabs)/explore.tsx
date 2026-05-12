@@ -54,6 +54,8 @@ export default function ExploreScreen() {
   useEffect(() => {
     if (selectedAthlete) {
       loadUsage();
+      setResponse("");
+      setQuestion("");
     }
   }, [selectedAthlete]);
 
@@ -178,25 +180,36 @@ export default function ExploreScreen() {
     setResponse("");
 
     try {
-      const { data, error } = await supabase.functions.invoke("coach-ai", {
-        body: {
-          question,
-          athlete: selectedAthlete,
+      const res = await fetch("/.netlify/functions/coach-ai", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
         },
+        body: JSON.stringify({
+          question: question.trim(),
+          athlete: selectedAthlete,
+        }),
       });
 
-      if (error) {
-        console.log("Coach AI error:", error);
-        setResponse("Coach AI could not respond right now. Please try again.");
+      const data = await res.json();
+
+      if (!res.ok) {
+        console.log("Coach AI error:", data);
+        setResponse(
+          data?.error ||
+            "Coach AI could not respond right now. Please try again."
+        );
         return;
       }
 
-      setResponse(data?.answer || "Coach AI responded, but no answer came back.");
+      setResponse(
+        data?.answer || "Coach AI responded, but no answer came back."
+      );
 
       await incrementUsage();
     } catch (err) {
       console.log("Coach AI crash:", err);
-      setResponse("Something went wrong.");
+      setResponse("Something went wrong. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -265,7 +278,7 @@ export default function ExploreScreen() {
           <TextInput
             value={question}
             onChangeText={setQuestion}
-            placeholder="Example: How can I improve faster?"
+            placeholder="Example: My ankle hurts. What should I do?"
             placeholderTextColor="#64748b"
             multiline
             style={styles.input}
@@ -277,9 +290,7 @@ export default function ExploreScreen() {
             disabled={loading}
           >
             <Text style={styles.buttonText}>
-              {loading
-                ? "Coach AI is analyzing readiness..."
-                : "Ask Coach AI"}
+              {loading ? "Coach AI is analyzing..." : "Ask Coach AI"}
             </Text>
           </TouchableOpacity>
 

@@ -26,4 +26,4 @@ export async function getAthleteSession() {
 
 export async function clearAthleteSession() {
   await AsyncStorage.removeItem(ATHLETE_SESSION_KEY);
-}
+} 
