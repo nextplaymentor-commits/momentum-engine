@@ -1,5 +1,5 @@
 import { useFocusEffect } from "expo-router";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Alert,
   SafeAreaView,
@@ -11,6 +11,11 @@ import {
   View,
 } from "react-native";
 
+import {
+  clearAthleteSession,
+  getAthleteSession,
+  saveAthleteSession,
+} from "../../lib/athleteSession";
 import { supabase } from "../../lib/supabase";
 
 type AthleteAccess = {
@@ -93,8 +98,23 @@ export default function ProgressScreen() {
   const [unlocking, setUnlocking] = useState(false);
   const [savingReport, setSavingReport] = useState(false);
   const [lastSynced, setLastSynced] = useState("");
+  const [isCheckingSavedSession, setIsCheckingSavedSession] = useState(true);
 
   const playerName = activeAthlete?.player_name || "Athlete";
+
+  useEffect(() => {
+    const loadSavedAthlete = async () => {
+      const savedAthlete = await getAthleteSession();
+
+      if (savedAthlete) {
+        setActiveAthlete(savedAthlete);
+      }
+
+      setIsCheckingSavedSession(false);
+    };
+
+    loadSavedAthlete();
+  }, []);
 
   const unlockProgress = async () => {
     const cleanCode = accessCode.trim().toUpperCase();
@@ -133,9 +153,12 @@ export default function ProgressScreen() {
     }
 
     setActiveAthlete(data);
+    await saveAthleteSession(data);
   };
 
-  const lockProgress = () => {
+  const lockProgress = async () => {
+    await clearAthleteSession();
+
     setAccessCode("");
     setActiveAthlete(null);
     setCheckIns([]);
@@ -365,6 +388,16 @@ export default function ProgressScreen() {
 
   const latestCheckIn = checkIns[0];
 
+  if (isCheckingSavedSession) {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <View style={styles.lockContainer}>
+          <Text style={styles.loadingText}>Loading athlete...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   if (!activeAthlete) {
     return (
       <SafeAreaView style={styles.safe}>
@@ -373,7 +406,7 @@ export default function ProgressScreen() {
             <Text style={styles.smallTitle}>PROGRESS</Text>
             <Text style={styles.title}>Athlete Progress</Text>
             <Text style={styles.subtitle}>
-              Enter your athlete code to view your own progress only.
+              Enter your athlete code once. Momentum Engine will remember you.
             </Text>
 
             <TextInput
@@ -581,6 +614,13 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     padding: 22,
+  },
+
+  loadingText: {
+    color: "#ffffff",
+    fontSize: 20,
+    fontWeight: "900",
+    textAlign: "center",
   },
 
   lockCard: {
