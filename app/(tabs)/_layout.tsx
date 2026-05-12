@@ -90,7 +90,7 @@ export default function TabLayout() {
           title: "Coach",
           tabBarIcon: ({ color, focused }) => (
             <Ionicons
-              name={focused ? "shield-checkmark" : "shield-checkmark-outline"}
+              name={focused ? "lock-closed" : "lock-closed-outline"}
               size={22}
               color={color}
             />
@@ -101,7 +101,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="explore"
         options={{
-          title: "Coach AI",
+          title: "Explore",
           tabBarIcon: ({ color, focused }) => (
             <Ionicons
               name={focused ? "sparkles" : "sparkles-outline"}
