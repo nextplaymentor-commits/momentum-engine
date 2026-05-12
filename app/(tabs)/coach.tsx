@@ -99,7 +99,7 @@ export default function CoachScreen() {
   const checkCoachSession = async () => {
     const session = await getCoachSession();
 
-    if (session) {
+    if (session?.unlocked) {
       setUnlocked(true);
     }
   };
