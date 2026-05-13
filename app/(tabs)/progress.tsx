@@ -19,7 +19,7 @@ import {
 import { supabase } from "../../lib/supabase";
 
 type AthleteAccess = {
-  id?: string;
+  id: string;
   access_code: string;
   player_name: string;
   status?: string;
@@ -27,6 +27,7 @@ type AthleteAccess = {
 
 type CheckIn = {
   id?: string;
+  athlete_id?: string;
   player_name: string;
   position: string;
   day_type: string;
@@ -47,6 +48,7 @@ type CheckIn = {
 
 type JournalEntry = {
   id?: string;
+  athlete_id?: string;
   player_name: string;
   created_at?: string;
 };
@@ -106,8 +108,8 @@ export default function ProgressScreen() {
     const loadSavedAthlete = async () => {
       const savedAthlete = await getAthleteSession();
 
-      if (savedAthlete) {
-        setActiveAthlete(savedAthlete);
+      if (savedAthlete?.id) {
+        setActiveAthlete(savedAthlete as AthleteAccess);
       }
 
       setIsCheckingSavedSession(false);
@@ -127,7 +129,7 @@ export default function ProgressScreen() {
     setUnlocking(true);
 
     const { data, error } = await supabase
-      .from("athlete_profiles")
+      .from("athletes")
       .select("id, player_name, access_code, status")
       .eq("access_code", cleanCode)
       .maybeSingle();
@@ -167,7 +169,7 @@ export default function ProgressScreen() {
   };
 
   const loadProgress = async () => {
-    if (!activeAthlete) return;
+    if (!activeAthlete?.id) return;
 
     setLoading(true);
 
@@ -175,13 +177,13 @@ export default function ProgressScreen() {
       supabase
         .from("check_ins")
         .select("*")
-        .eq("player_name", activeAthlete.player_name)
+        .eq("athlete_id", activeAthlete.id)
         .order("created_at", { ascending: false }),
 
       supabase
         .from("journal_entries")
-        .select("id, player_name, created_at")
-        .eq("player_name", activeAthlete.player_name)
+        .select("id, athlete_id, player_name, created_at")
+        .eq("athlete_id", activeAthlete.id)
         .order("created_at", { ascending: false }),
     ]);
 
@@ -214,7 +216,7 @@ export default function ProgressScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      if (activeAthlete) {
+      if (activeAthlete?.id) {
         loadProgress();
       }
     }, [activeAthlete])
@@ -248,10 +250,8 @@ export default function ProgressScreen() {
   const averageConfidence =
     totalCheckIns > 0
       ? Math.round(
-          checkIns.reduce(
-            (sum, item) => sum + Number(item.confidence || 0),
-            0
-          ) / totalCheckIns
+          checkIns.reduce((sum, item) => sum + Number(item.confidence || 0), 0) /
+            totalCheckIns
         )
       : 0;
 
@@ -296,10 +296,8 @@ export default function ProgressScreen() {
   const avgSoreness =
     totalCheckIns > 0
       ? Math.round(
-          checkIns.reduce(
-            (sum, item) => sum + Number(item.soreness || 0),
-            0
-          ) / totalCheckIns
+          checkIns.reduce((sum, item) => sum + Number(item.soreness || 0), 0) /
+            totalCheckIns
         )
       : 0;
 
@@ -355,7 +353,7 @@ export default function ProgressScreen() {
       : `${playerName} completed ${thisWeekCheckIns.length} check-in(s) this week with an average readiness of ${thisWeekAvg}. Main focus: ${weeklyFocus}`;
 
   const saveWeeklyReport = async () => {
-    if (!activeAthlete) return;
+    if (!activeAthlete?.id) return;
 
     const { weekStart, weekEnd } = getWeekDates();
 
@@ -363,7 +361,9 @@ export default function ProgressScreen() {
 
     const { error } = await supabase.from("weekly_reports").insert([
       {
+        athlete_id: activeAthlete.id,
         player_name: playerName,
+        access_code: activeAthlete.access_code,
         week_start: weekStart,
         week_end: weekEnd,
         readiness_avg: thisWeekAvg,
