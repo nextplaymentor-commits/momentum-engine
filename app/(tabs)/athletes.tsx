@@ -16,11 +16,11 @@ import { supabase } from "../../lib/supabase";
 type AthleteProfile = {
   id?: string;
   player_name: string;
-  age: number;
-  position: string;
-  goal: string;
-  level: string;
-  parent_contact: string;
+  age?: number;
+  position?: string;
+  goal?: string;
+  level?: string;
+  parent_contact?: string;
   access_code?: string;
   status?: string;
 };
@@ -28,8 +28,7 @@ type AthleteProfile = {
 function generateAccessCode(name: string) {
   const cleanName = name.trim().replace(/\s+/g, "").toUpperCase();
   const shortName = cleanName.slice(0, 6) || "ATHLETE";
-  const year = new Date().getFullYear();
-  return `${shortName}${year}`;
+  return `${shortName}10`;
 }
 
 export default function AthletesScreen() {
@@ -45,9 +44,9 @@ export default function AthletesScreen() {
 
   const loadProfiles = async () => {
     const { data, error } = await supabase
-      .from("athlete_profiles")
+      .from("athletes")
       .select("*")
-      .order("id", { ascending: false });
+      .order("created_at", { ascending: false });
 
     if (error) {
       console.log(error.message);
@@ -72,18 +71,23 @@ export default function AthletesScreen() {
     const finalAccessCode =
       accessCode.trim().toUpperCase() || generateAccessCode(playerName);
 
-    const { error } = await supabase.from("athlete_profiles").insert([
+    const { error } = await supabase.from("athletes").upsert(
+      [
+        {
+          player_name: playerName.trim(),
+          age: Number(age) || 0,
+          position: position.trim(),
+          goal: goal.trim(),
+          level: level.trim(),
+          parent_contact: parentContact.trim(),
+          access_code: finalAccessCode,
+          status: "active",
+        },
+      ],
       {
-        player_name: playerName.trim(),
-        age: Number(age) || 0,
-        position: position.trim(),
-        goal: goal.trim(),
-        level: level.trim(),
-        parent_contact: parentContact.trim(),
-        access_code: finalAccessCode,
-        status: "active",
-      },
-    ]);
+        onConflict: "access_code",
+      }
+    );
 
     if (error) {
       Alert.alert("Save Failed", error.message);
@@ -119,7 +123,7 @@ export default function AthletesScreen() {
           style: "destructive",
           onPress: async () => {
             const { error } = await supabase
-              .from("athlete_profiles")
+              .from("athletes")
               .delete()
               .eq("id", id);
 
@@ -146,7 +150,7 @@ export default function AthletesScreen() {
           style: "destructive",
           onPress: async () => {
             const { error } = await supabase
-              .from("athlete_profiles")
+              .from("athletes")
               .delete()
               .not("id", "is", null);
 
@@ -163,13 +167,17 @@ export default function AthletesScreen() {
     );
   };
 
-  const deactivateAthlete = async (id?: string, currentStatus?: string) => {
+  const deactivateAthlete = async (
+    id?: string,
+    currentStatus?: string
+  ) => {
     if (!id) return;
 
-    const nextStatus = currentStatus === "inactive" ? "active" : "inactive";
+    const nextStatus =
+      currentStatus === "inactive" ? "active" : "inactive";
 
     const { error } = await supabase
-      .from("athlete_profiles")
+      .from("athletes")
       .update({ status: nextStatus })
       .eq("id", id);
 
@@ -202,6 +210,7 @@ export default function AthletesScreen() {
             value={playerName}
             onChangeText={(text) => {
               setPlayerName(text);
+
               if (!accessCode.trim()) {
                 setAccessCode(generateAccessCode(text));
               }
@@ -254,14 +263,19 @@ export default function AthletesScreen() {
 
           <TextInput
             value={accessCode}
-            onChangeText={(text) => setAccessCode(text.toUpperCase())}
+            onChangeText={(text) =>
+              setAccessCode(text.toUpperCase())
+            }
             placeholder="Access Code"
             placeholderTextColor="#64748b"
             autoCapitalize="characters"
             style={styles.input}
           />
 
-          <TouchableOpacity style={styles.button} onPress={saveProfile}>
+          <TouchableOpacity
+            style={styles.button}
+            onPress={saveProfile}
+          >
             <Text style={styles.buttonText}>Save Athlete</Text>
           </TouchableOpacity>
         </View>
@@ -281,13 +295,21 @@ export default function AthletesScreen() {
           </View>
 
           {profiles.length === 0 ? (
-            <Text style={styles.bodyText}>No athletes added yet.</Text>
+            <Text style={styles.bodyText}>
+              No athletes added yet.
+            </Text>
           ) : (
             profiles.map((item, index) => (
-              <View key={item.id || index} style={styles.profileCard}>
+              <View
+                key={item.id || index}
+                style={styles.profileCard}
+              >
                 <View style={styles.profileTopRow}>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.profileName}>{item.player_name}</Text>
+                    <Text style={styles.profileName}>
+                      {item.player_name}
+                    </Text>
+
                     <Text style={styles.statusText}>
                       Status: {item.status || "active"}
                     </Text>
@@ -296,21 +318,36 @@ export default function AthletesScreen() {
                   <View
                     style={[
                       styles.statusBadge,
-                      item.status === "inactive" && styles.statusBadgeInactive,
+                      item.status === "inactive" &&
+                        styles.statusBadgeInactive,
                     ]}
                   >
                     <Text style={styles.statusBadgeText}>
-                      {item.status === "inactive" ? "Inactive" : "Active"}
+                      {item.status === "inactive"
+                        ? "Inactive"
+                        : "Active"}
                     </Text>
                   </View>
                 </View>
 
-                <Text style={styles.bodyText}>Age: {item.age}</Text>
-                <Text style={styles.bodyText}>Position: {item.position}</Text>
-                <Text style={styles.bodyText}>Goal: {item.goal}</Text>
-                <Text style={styles.bodyText}>Level: {item.level}</Text>
                 <Text style={styles.bodyText}>
-                  Parent: {item.parent_contact}
+                  Age: {item.age || "N/A"}
+                </Text>
+
+                <Text style={styles.bodyText}>
+                  Position: {item.position || "N/A"}
+                </Text>
+
+                <Text style={styles.bodyText}>
+                  Goal: {item.goal || "N/A"}
+                </Text>
+
+                <Text style={styles.bodyText}>
+                  Level: {item.level || "N/A"}
+                </Text>
+
+                <Text style={styles.bodyText}>
+                  Parent: {item.parent_contact || "N/A"}
                 </Text>
 
                 <View style={styles.hiddenCodeBox}>
@@ -321,7 +358,9 @@ export default function AthletesScreen() {
 
                 <TouchableOpacity
                   style={styles.secondaryButton}
-                  onPress={() => deactivateAthlete(item.id, item.status)}
+                  onPress={() =>
+                    deactivateAthlete(item.id, item.status)
+                  }
                 >
                   <Text style={styles.secondaryButtonText}>
                     {item.status === "inactive"
@@ -334,7 +373,9 @@ export default function AthletesScreen() {
                   style={styles.deleteButton}
                   onPress={() => deleteAthlete(item.id)}
                 >
-                  <Text style={styles.deleteButtonText}>Remove Athlete</Text>
+                  <Text style={styles.deleteButtonText}>
+                    Remove Athlete
+                  </Text>
                 </TouchableOpacity>
               </View>
             ))
