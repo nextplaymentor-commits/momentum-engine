@@ -22,7 +22,7 @@ import {
 import { supabase } from "../../lib/supabase";
 
 type AthleteAccess = {
-  id?: string;
+  id: string;
   access_code: string;
   player_name: string;
   status?: string;
@@ -65,22 +65,13 @@ async function getFreshQuestions(playerName: string) {
     availableQuestions = QUESTION_BANK;
   }
 
-  const nextQuestions = shuffle(availableQuestions).slice(
-    0,
-    QUESTIONS_PER_ENTRY
-  );
+  const nextQuestions = shuffle(availableQuestions).slice(0, QUESTIONS_PER_ENTRY);
 
   const updatedSeenIds = Array.from(
-    new Set([
-      ...savedSeenIds,
-      ...nextQuestions.map((question) => question.id),
-    ])
+    new Set([...savedSeenIds, ...nextQuestions.map((question) => question.id)])
   );
 
-  await AsyncStorage.setItem(
-    storageKey,
-    JSON.stringify(updatedSeenIds)
-  );
+  await AsyncStorage.setItem(storageKey, JSON.stringify(updatedSeenIds));
 
   return {
     questions: nextQuestions,
@@ -90,33 +81,24 @@ async function getFreshQuestions(playerName: string) {
 
 export default function JournalScreen() {
   const [accessCode, setAccessCode] = useState("");
-
-  const [activeAthlete, setActiveAthlete] =
-    useState<AthleteAccess | null>(null);
+  const [activeAthlete, setActiveAthlete] = useState<AthleteAccess | null>(null);
 
   const [unlocking, setUnlocking] = useState(false);
   const [saving, setSaving] = useState(false);
-
-  const [isCheckingSavedSession, setIsCheckingSavedSession] =
-    useState(true);
+  const [isCheckingSavedSession, setIsCheckingSavedSession] = useState(true);
 
   const [questions, setQuestions] = useState<Question[]>([]);
-
   const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [seenQuestionIds, setSeenQuestionIds] = useState<string[]>([]);
 
-  const [seenQuestionIds, setSeenQuestionIds] = useState<
-    string[]
-  >([]);
-
-  const playerName =
-    activeAthlete?.player_name || "Athlete";
+  const playerName = activeAthlete?.player_name || "Athlete";
 
   useEffect(() => {
     const loadSavedAthlete = async () => {
       const savedAthlete = await getAthleteSession();
 
-      if (savedAthlete) {
-        setActiveAthlete(savedAthlete);
+      if (savedAthlete?.id) {
+        setActiveAthlete(savedAthlete as AthleteAccess);
       }
 
       setIsCheckingSavedSession(false);
@@ -135,17 +117,14 @@ export default function JournalScreen() {
     const cleanCode = accessCode.trim().toUpperCase();
 
     if (!cleanCode) {
-      Alert.alert(
-        "Access Required",
-        "Enter your athlete access code."
-      );
+      Alert.alert("Access Required", "Enter your athlete access code.");
       return;
     }
 
     setUnlocking(true);
 
     const { data, error } = await supabase
-      .from("athlete_profiles")
+      .from("athletes")
       .select("id, player_name, access_code, status")
       .eq("access_code", cleanCode)
       .maybeSingle();
@@ -158,23 +137,16 @@ export default function JournalScreen() {
     }
 
     if (!data) {
-      Alert.alert(
-        "Invalid Code",
-        "Please enter the correct athlete access code."
-      );
+      Alert.alert("Invalid Code", "Please enter the correct athlete access code.");
       return;
     }
 
     if (data.status === "inactive") {
-      Alert.alert(
-        "Inactive Athlete",
-        "This athlete is currently inactive."
-      );
+      Alert.alert("Inactive Athlete", "This athlete is currently inactive.");
       return;
     }
 
     setActiveAthlete(data);
-
     await saveAthleteSession(data);
   };
 
@@ -192,14 +164,10 @@ export default function JournalScreen() {
     const fresh = await getFreshQuestions(playerName);
 
     setQuestions(fresh.questions);
-
     setSeenQuestionIds(fresh.seenIds);
   };
 
-  const updateAnswer = (
-    questionId: string,
-    answer: string
-  ) => {
+  const updateAnswer = (questionId: string, answer: string) => {
     setAnswers((prev) => ({
       ...prev,
       [questionId]: answer,
@@ -207,11 +175,8 @@ export default function JournalScreen() {
   };
 
   const saveEntry = async () => {
-    if (!activeAthlete) {
-      Alert.alert(
-        "Access Required",
-        "Enter your athlete code first."
-      );
+    if (!activeAthlete?.id) {
+      Alert.alert("Access Required", "Enter your athlete code first.");
       return;
     }
 
@@ -220,24 +185,21 @@ export default function JournalScreen() {
     );
 
     if (!hasAnswer) {
-      Alert.alert(
-        "Add a reflection",
-        "Answer at least one question."
-      );
+      Alert.alert("Add a reflection", "Answer at least one question.");
       return;
     }
 
     setSaving(true);
 
-    const { error } = await supabase
-      .from("journal_entries")
-      .insert([
-        {
-          player_name: playerName,
-          questions,
-          answers,
-        },
-      ]);
+    const { error } = await supabase.from("journal_entries").insert([
+      {
+        athlete_id: activeAthlete.id,
+        player_name: playerName,
+        access_code: activeAthlete.access_code,
+        questions,
+        answers,
+      },
+    ]);
 
     setSaving(false);
 
@@ -252,10 +214,7 @@ export default function JournalScreen() {
     setQuestions(fresh.questions);
     setSeenQuestionIds(fresh.seenIds);
 
-    Alert.alert(
-      "Saved",
-      "Journal saved successfully."
-    );
+    Alert.alert("Saved", "Journal saved successfully.");
   };
 
   const getDifferentQuestions = async () => {
@@ -270,9 +229,7 @@ export default function JournalScreen() {
     return (
       <SafeAreaView style={styles.safe}>
         <View style={styles.lockContainer}>
-          <Text style={styles.loadingText}>
-            Loading athlete...
-          </Text>
+          <Text style={styles.loadingText}>Loading athlete...</Text>
         </View>
       </SafeAreaView>
     );
@@ -283,24 +240,17 @@ export default function JournalScreen() {
       <SafeAreaView style={styles.safe}>
         <View style={styles.lockContainer}>
           <View style={styles.lockCard}>
-            <Text style={styles.smallTitle}>
-              JOURNAL
-            </Text>
+            <Text style={styles.smallTitle}>JOURNAL</Text>
 
-            <Text style={styles.title}>
-              Athlete Journal
-            </Text>
+            <Text style={styles.title}>Athlete Journal</Text>
 
             <Text style={styles.subtitle}>
-              Enter your athlete code once.
-              Momentum Engine will remember you.
+              Enter your athlete code once. Momentum Engine will remember you.
             </Text>
 
             <TextInput
               value={accessCode}
-              onChangeText={(text) =>
-                setAccessCode(text.toUpperCase())
-              }
+              onChangeText={(text) => setAccessCode(text.toUpperCase())}
               placeholder="Enter access code"
               placeholderTextColor="#64748b"
               autoCapitalize="characters"
@@ -308,17 +258,12 @@ export default function JournalScreen() {
             />
 
             <TouchableOpacity
-              style={[
-                styles.saveButton,
-                unlocking && styles.disabledButton,
-              ]}
+              style={[styles.saveButton, unlocking && styles.disabledButton]}
               onPress={unlockJournal}
               disabled={unlocking}
             >
               <Text style={styles.saveButtonText}>
-                {unlocking
-                  ? "Checking..."
-                  : "Open My Journal"}
+                {unlocking ? "Checking..." : "Open My Journal"}
               </Text>
             </TouchableOpacity>
           </View>
@@ -330,61 +275,39 @@ export default function JournalScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <KeyboardAvoidingView
-        behavior={
-          Platform.OS === "ios"
-            ? "padding"
-            : undefined
-        }
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
         style={styles.keyboard}
       >
-        <ScrollView
-          contentContainerStyle={styles.container}
-        >
+        <ScrollView contentContainerStyle={styles.container}>
           <View style={styles.header}>
             <View>
-              <Text style={styles.screenTitle}>
-                Journal
-              </Text>
+              <Text style={styles.screenTitle}>Journal</Text>
 
               <Text style={styles.screenSubtitle}>
-                {playerName}'s private reflection
-                space.
+                {playerName}'s private reflection space.
               </Text>
             </View>
 
-            <TouchableOpacity
-              style={styles.switchButton}
-              onPress={lockJournal}
-            >
-              <Text style={styles.switchButtonText}>
-                Switch
-              </Text>
+            <TouchableOpacity style={styles.switchButton} onPress={lockJournal}>
+              <Text style={styles.switchButtonText}>Switch</Text>
             </TouchableOpacity>
           </View>
 
           <View style={styles.heroCard}>
             <View>
-              <Text style={styles.heroLabel}>
-                Today’s Reflection
-              </Text>
+              <Text style={styles.heroLabel}>Today’s Reflection</Text>
 
-              <Text style={styles.heroTitle}>
-                2 Questions
-              </Text>
+              <Text style={styles.heroTitle}>2 Questions</Text>
 
               <Text style={styles.heroText}>
-                Answer, save, and Momentum Engine
-                will unlock a fresh set.
+                Answer, save, and Momentum Engine will unlock a fresh set.
               </Text>
             </View>
           </View>
 
           <View style={styles.card}>
             {questions.map((question, index) => (
-              <View
-                key={question.id}
-                style={styles.questionBox}
-              >
+              <View key={question.id} style={styles.questionBox}>
                 <Text style={styles.questionText}>
                   {index + 1}. {question.text}
                 </Text>
@@ -395,25 +318,18 @@ export default function JournalScreen() {
                   placeholderTextColor="#73849c"
                   multiline
                   value={answers[question.id] || ""}
-                  onChangeText={(text) =>
-                    updateAnswer(question.id, text)
-                  }
+                  onChangeText={(text) => updateAnswer(question.id, text)}
                 />
               </View>
             ))}
 
             <TouchableOpacity
-              style={[
-                styles.saveButton,
-                saving && styles.disabledButton,
-              ]}
+              style={[styles.saveButton, saving && styles.disabledButton]}
               onPress={saveEntry}
               disabled={saving}
             >
               <Text style={styles.saveButtonText}>
-                {saving
-                  ? "Saving..."
-                  : "Save Entry"}
+                {saving ? "Saving..." : "Save Entry"}
               </Text>
             </TouchableOpacity>
 
@@ -421,9 +337,7 @@ export default function JournalScreen() {
               style={styles.secondaryButton}
               onPress={getDifferentQuestions}
             >
-              <Text style={styles.secondaryButtonText}>
-                Different Questions
-              </Text>
+              <Text style={styles.secondaryButtonText}>Different Questions</Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
