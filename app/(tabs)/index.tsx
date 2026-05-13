@@ -23,7 +23,7 @@ type DayType = "Training" | "Match" | "Off";
 type TrainingLoad = "None" | "Light" | "Full";
 
 type AthleteAccess = {
-  id?: string;
+  id: string;
   access_code: string;
   player_name: string;
   position?: string;
@@ -176,39 +176,19 @@ function calculatePlan(
       "Goalkeeper Focus: 20 catches, 15 footwork reps, 10 distribution passes, and 10 set-position reactions.",
   };
 
-  let dayPlan = "";
+  const dayPlan =
+    dayType === "Match"
+      ? "Match Day: arrive early, visualize your first 3 actions, play simple for the first 5 minutes, communicate early, and win your first duel."
+      : dayType === "Training"
+      ? "Training Day: focus on quality reps, strong habits, clean technique, communication, and one position-specific detail."
+      : "Off Day: no hard training. Walk 15–20 minutes, stretch, hydrate, eat well, and mentally reset.";
 
-  if (dayType === "Match") {
-    dayPlan =
-      "Match Day: arrive early, visualize your first 3 actions, play simple for the first 5 minutes, communicate early, and win your first duel.";
-  }
-
-  if (dayType === "Training") {
-    dayPlan =
-      "Training Day: focus on quality reps, strong habits, clean technique, communication, and one position-specific detail.";
-  }
-
-  if (dayType === "Off") {
-    dayPlan =
-      "Off Day: no hard training. Walk 15–20 minutes, stretch, hydrate, eat well, and mentally reset.";
-  }
-
-  let loadPlan = "";
-
-  if (trainingLoad === "Full") {
-    loadPlan =
-      "Full Load: warm up properly, complete your main training block, push intensity, then cool down.";
-  }
-
-  if (trainingLoad === "Light") {
-    loadPlan =
-      "Light Load: keep it technical. Ball touches, passing, mobility, light movement, and no extra conditioning.";
-  }
-
-  if (trainingLoad === "None") {
-    loadPlan =
-      "No Load: recovery only. Stretch, walk, hydrate, and prepare for the next session.";
-  }
+  const loadPlan =
+    trainingLoad === "Full"
+      ? "Full Load: warm up properly, complete your main training block, push intensity, then cool down."
+      : trainingLoad === "Light"
+      ? "Light Load: keep it technical. Ball touches, passing, mobility, light movement, and no extra conditioning."
+      : "No Load: recovery only. Stretch, walk, hydrate, and prepare for the next session.";
 
   let trainingPlan = `${positionFocus[position]} ${dayPlan} ${loadPlan}`;
 
@@ -216,44 +196,24 @@ function calculatePlan(
     trainingPlan = `${dayPlan} ${loadPlan} Optional ball work only: 5 minutes juggling or light wall passes. Nothing intense.`;
   }
 
-  let fuelPlan = "";
-
-  if (dayType === "Match") {
-    fuelPlan =
-      "Breakfast: oatmeal + banana + eggs + water.\n\n2–3 hours before: chicken/rice, pasta with lean meat, or turkey sandwich + fruit.\n\n60 minutes before: banana, granola bar, or yogurt.\n\nAfter: protein + carbs within 45 minutes — chicken/rice, eggs/toast, smoothie, or chocolate milk.\n\nHydration: drink 24–32 oz before noon and add electrolytes after the match.";
-  }
-
-  if (dayType === "Training") {
-    fuelPlan =
-      "Before training: banana, toast with peanut butter, oatmeal, or rice + eggs.\n\nAfter training: protein + carbs within 30–45 minutes — chicken/rice, pasta/meat sauce, eggs/potatoes, or Greek yogurt + fruit.\n\nHydration: drink 24 oz before noon and 12–16 oz after training.";
-  }
-
-  if (dayType === "Off") {
-    fuelPlan =
-      "Breakfast: eggs + oatmeal or toast + fruit.\n\nLunch: chicken/rice/vegetables or turkey sandwich + fruit.\n\nSnack: Greek yogurt, banana, trail mix, or smoothie.\n\nDinner: protein + carbs + vegetables. Keep meals clean and do not skip food.\n\nHydration: aim for 60–70 oz today.";
-  }
+  let fuelPlan =
+    dayType === "Match"
+      ? "Breakfast: oatmeal + banana + eggs + water.\n\n2–3 hours before: chicken/rice, pasta with lean meat, or turkey sandwich + fruit.\n\n60 minutes before: banana, granola bar, or yogurt.\n\nAfter: protein + carbs within 45 minutes — chicken/rice, eggs/toast, smoothie, or chocolate milk.\n\nHydration: drink 24–32 oz before noon and add electrolytes after the match."
+      : dayType === "Training"
+      ? "Before training: banana, toast with peanut butter, oatmeal, or rice + eggs.\n\nAfter training: protein + carbs within 30–45 minutes — chicken/rice, pasta/meat sauce, eggs/potatoes, or Greek yogurt + fruit.\n\nHydration: drink 24 oz before noon and 12–16 oz after training."
+      : "Breakfast: eggs + oatmeal or toast + fruit.\n\nLunch: chicken/rice/vegetables or turkey sandwich + fruit.\n\nSnack: Greek yogurt, banana, trail mix, or smoothie.\n\nDinner: protein + carbs + vegetables. Keep meals clean and do not skip food.\n\nHydration: aim for 60–70 oz today.";
 
   if (metrics.nutrition <= 5) {
     fuelPlan =
       "Nutrition Fix Today:\n\nMeal 1: eggs or chicken + rice, toast, potatoes, or oatmeal.\n\nSnack: banana, yogurt, fruit, or granola bar.\n\nMeal 2: protein + carbs again.\n\nGoal: do not skip carbs. Your body needs fuel to recover and perform.\n\nHydration: finish 20–24 oz before lunch.";
   }
 
-  let recoveryPlan = "";
-
-  if (dayType === "Match") {
-    recoveryPlan =
-      "After match:\n\n1. Walk or light jog 5 minutes.\n2. Stretch hips, calves, hamstrings, and quads for 10 minutes.\n3. Drink 16–20 oz water/electrolytes within 30 minutes.\n4. Eat protein + carbs within 45 minutes.\n5. Sleep goal: 8+ hours.";
-  }
-
-  if (dayType === "Training") {
-    recoveryPlan =
-      "After training:\n\n1. Cooldown walk 5 minutes.\n2. Stretch sore areas for 10 minutes.\n3. Drink 12–16 oz water after training.\n4. Eat a recovery meal within 30–45 minutes.\n5. No extra hard work if legs feel heavy.";
-  }
-
-  if (dayType === "Off") {
-    recoveryPlan =
-      "Off day recovery:\n\n1. Walk 15–20 minutes.\n2. Stretch hips, calves, hamstrings, and quads for 10 minutes.\n3. Hydrate throughout the day.\n4. Light mobility only.\n5. Sleep goal: 8+ hours.";
-  }
+  let recoveryPlan =
+    dayType === "Match"
+      ? "After match:\n\n1. Walk or light jog 5 minutes.\n2. Stretch hips, calves, hamstrings, and quads for 10 minutes.\n3. Drink 16–20 oz water/electrolytes within 30 minutes.\n4. Eat protein + carbs within 45 minutes.\n5. Sleep goal: 8+ hours."
+      : dayType === "Training"
+      ? "After training:\n\n1. Cooldown walk 5 minutes.\n2. Stretch sore areas for 10 minutes.\n3. Drink 12–16 oz water after training.\n4. Eat a recovery meal within 30–45 minutes.\n5. No extra hard work if legs feel heavy."
+      : "Off day recovery:\n\n1. Walk 15–20 minutes.\n2. Stretch hips, calves, hamstrings, and quads for 10 minutes.\n3. Hydrate throughout the day.\n4. Light mobility only.\n5. Sleep goal: 8+ hours.";
 
   if (metrics.soreness >= 7) {
     recoveryPlan =
@@ -265,22 +225,12 @@ function calculatePlan(
       "High stress recovery:\n\n1. Keep training simple today.\n2. Take 5 slow breaths before starting.\n3. Walk 10–15 minutes.\n4. Stretch 10 minutes.\n5. Put the phone down early and protect sleep.";
   }
 
-  let mindsetPlan = "";
-
-  if (dayType === "Match") {
-    mindsetPlan =
-      "Compete first, then settle in. Win your first action, communicate, and do not chase perfection.";
-  }
-
-  if (dayType === "Training") {
-    mindsetPlan =
-      "Train with purpose. Pick one detail and attack it the whole session.";
-  }
-
-  if (dayType === "Off") {
-    mindsetPlan =
-      "Recovery is work too. Use today to reset your body and clear your mind.";
-  }
+  let mindsetPlan =
+    dayType === "Match"
+      ? "Compete first, then settle in. Win your first action, communicate, and do not chase perfection."
+      : dayType === "Training"
+      ? "Train with purpose. Pick one detail and attack it the whole session."
+      : "Recovery is work too. Use today to reset your body and clear your mind.";
 
   if (metrics.confidence <= 5) {
     mindsetPlan =
@@ -325,14 +275,12 @@ function calculatePlan(
 
   priorityActions.push(...smartRecommendations);
 
-  const cleanPriorityActions = [...new Set(priorityActions)].slice(0, 8);
-
   return {
     score,
     readinessLabel,
     coachFeedback,
     riskText,
-    priorityActions: cleanPriorityActions,
+    priorityActions: [...new Set(priorityActions)].slice(0, 8),
     trainingPlan,
     fuelPlan,
     recoveryPlan,
@@ -432,8 +380,8 @@ export default function HomeScreen() {
     const loadSavedAthlete = async () => {
       const savedAthlete = await getAthleteSession();
 
-      if (savedAthlete) {
-        setActiveAthlete(savedAthlete);
+      if (savedAthlete?.id) {
+        setActiveAthlete(savedAthlete as AthleteAccess);
         setPosition(normalizePosition(savedAthlete.position));
       }
 
@@ -454,7 +402,7 @@ export default function HomeScreen() {
     setIsUnlocking(true);
 
     const { data, error } = await supabase
-      .from("athlete_profiles")
+      .from("athletes")
       .select("id, player_name, position, access_code, status")
       .eq("access_code", cleanCode)
       .maybeSingle();
@@ -509,7 +457,7 @@ export default function HomeScreen() {
   };
 
   const checkReadiness = async () => {
-    if (!activeAthlete) {
+    if (!activeAthlete?.id) {
       Alert.alert("Access Required", "Please enter your athlete code first.");
       return;
     }
@@ -527,7 +475,10 @@ export default function HomeScreen() {
 
     const { error } = await supabase.from("check_ins").insert([
       {
+        athlete_id: activeAthlete.id,
         player_name: playerName,
+        access_code: activeAthlete.access_code,
+
         position,
         day_type: dayType,
         training_load: trainingLoad,
@@ -738,7 +689,7 @@ export default function HomeScreen() {
               <PlanTile title="Priority 2" text={plan.priorityActions[1] || "Control what you can control."} />
               <PlanTile title="Priority 3" text={plan.priorityActions[2] || "Keep your habits sharp."} />
               <PlanTile title="Priority 4" text={plan.priorityActions[3] || "Finish the day strong."} />
-              <PlanTile wide title="Smart Recommendations" text={plan.priorityActions.slice(4).join("\n\n")} />
+              <PlanTile wide title="Smart Recommendations" text={plan.priorityActions.slice(4).join("\n\n") || "No extra recommendations today."} />
               <PlanTile wide title="Training / Day Plan" text={plan.trainingPlan} />
               <PlanTile wide title="Fuel" text={plan.fuelPlan} />
               <PlanTile wide title="Recovery" text={plan.recoveryPlan} />
@@ -775,20 +726,17 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background,
   },
-
   loginContainer: {
     flex: 1,
     justifyContent: "center",
     padding: 20,
   },
-
   loadingText: {
     color: COLORS.text,
     fontSize: 20,
     fontWeight: "900",
     textAlign: "center",
   },
-
   loginCard: {
     backgroundColor: COLORS.card,
     borderRadius: 30,
@@ -796,7 +744,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
   },
-
   loginSmallTitle: {
     color: COLORS.green,
     fontSize: 13,
@@ -804,21 +751,18 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
     marginBottom: 10,
   },
-
   loginTitle: {
     color: COLORS.text,
     fontSize: 34,
     fontWeight: "900",
     marginBottom: 10,
   },
-
   loginText: {
     color: COLORS.muted,
     fontSize: 16,
     lineHeight: 23,
     marginBottom: 18,
   },
-
   loginHint: {
     color: COLORS.muted,
     fontSize: 13,
@@ -826,12 +770,10 @@ const styles = StyleSheet.create({
     marginTop: 14,
     textAlign: "center",
   },
-
   container: {
     padding: 18,
     paddingBottom: 120,
   },
-
   header: {
     marginTop: 6,
     marginBottom: 16,
@@ -839,20 +781,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
   },
-
   appTitle: {
     color: COLORS.text,
     fontSize: 32,
     fontWeight: "900",
     letterSpacing: -0.8,
   },
-
   appSubtitle: {
     color: COLORS.muted,
     fontSize: 15,
     marginTop: 4,
   },
-
   logoutButton: {
     backgroundColor: COLORS.card,
     borderWidth: 1,
@@ -861,13 +800,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
   },
-
   logoutButtonText: {
     color: COLORS.text,
     fontWeight: "900",
     fontSize: 13,
   },
-
   readinessCard: {
     backgroundColor: COLORS.blue,
     borderRadius: 30,
@@ -878,33 +815,28 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
   },
-
   readinessLeft: {
     flex: 1,
     paddingRight: 14,
   },
-
   readinessLabel: {
     color: "#dbeafe",
     fontSize: 14,
     fontWeight: "800",
     marginBottom: 8,
   },
-
   readinessTitle: {
     color: COLORS.text,
     fontSize: 27,
     fontWeight: "900",
     lineHeight: 31,
   },
-
   readinessSub: {
     color: "#dbeafe",
     fontSize: 14,
     marginTop: 8,
     lineHeight: 20,
   },
-
   scoreCircle: {
     width: 104,
     height: 104,
@@ -913,13 +845,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-
   scoreText: {
     color: COLORS.text,
     fontSize: 42,
     fontWeight: "900",
   },
-
   controlPanel: {
     backgroundColor: COLORS.card,
     borderRadius: 28,
@@ -928,20 +858,16 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 14,
   },
-
   setupColumn: {
     marginBottom: 18,
   },
-
   checkColumn: {},
-
   cardTitle: {
     color: COLORS.text,
     fontSize: 21,
     fontWeight: "900",
     marginBottom: 14,
   },
-
   input: {
     backgroundColor: "#061322",
     borderWidth: 1,
@@ -953,7 +879,6 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     marginBottom: 16,
   },
-
   lockedPlayerBox: {
     backgroundColor: "#061322",
     borderWidth: 1,
@@ -962,20 +887,17 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 16,
   },
-
   lockedPlayerLabel: {
     color: COLORS.muted,
     fontSize: 13,
     fontWeight: "900",
     marginBottom: 4,
   },
-
   lockedPlayerName: {
     color: COLORS.text,
     fontSize: 24,
     fontWeight: "900",
   },
-
   label: {
     color: COLORS.muted,
     fontSize: 13,
@@ -983,13 +905,11 @@ const styles = StyleSheet.create({
     marginBottom: 9,
     marginTop: 2,
   },
-
   chipWrap: {
     flexDirection: "row",
     flexWrap: "wrap",
     marginBottom: 12,
   },
-
   chip: {
     borderWidth: 1,
     borderColor: COLORS.border,
@@ -1000,23 +920,19 @@ const styles = StyleSheet.create({
     marginRight: 8,
     marginBottom: 8,
   },
-
   chipText: {
     color: "#d8e3f5",
     fontSize: 13,
     fontWeight: "900",
   },
-
   chipTextSelected: {
     color: "#03111d",
   },
-
   metricsGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "space-between",
   },
-
   metricBox: {
     width: "48.5%",
     backgroundColor: COLORS.cardSoft,
@@ -1026,13 +942,11 @@ const styles = StyleSheet.create({
     padding: 13,
     marginBottom: 10,
   },
-
   metricLabel: {
     color: COLORS.muted,
     fontSize: 13,
     fontWeight: "800",
   },
-
   metricValue: {
     color: COLORS.text,
     fontSize: 21,
@@ -1040,12 +954,10 @@ const styles = StyleSheet.create({
     marginTop: 3,
     marginBottom: 10,
   },
-
   metricButtons: {
     flexDirection: "row",
     justifyContent: "space-between",
   },
-
   miniButton: {
     width: 45,
     height: 38,
@@ -1054,14 +966,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-
   miniButtonText: {
     color: COLORS.text,
     fontSize: 26,
     fontWeight: "900",
     lineHeight: 28,
   },
-
   checkButton: {
     backgroundColor: COLORS.green,
     borderRadius: 22,
@@ -1069,17 +979,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 16,
   },
-
   checkButtonDisabled: {
     opacity: 0.6,
   },
-
   checkButtonText: {
     color: "#03111d",
     fontSize: 18,
     fontWeight: "900",
   },
-
   planBoard: {
     backgroundColor: "#08251f",
     borderRadius: 28,
@@ -1087,30 +994,25 @@ const styles = StyleSheet.create({
     borderColor: COLORS.green,
     padding: 16,
   },
-
   planBoardHeader: {
     marginBottom: 14,
   },
-
   planBoardTitle: {
     color: COLORS.text,
     fontSize: 24,
     fontWeight: "900",
   },
-
   planBoardSub: {
     color: "#a7f3d0",
     fontSize: 14,
     marginTop: 5,
     lineHeight: 20,
   },
-
   planGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "space-between",
   },
-
   planTile: {
     width: "48.5%",
     backgroundColor: "rgba(0,0,0,0.2)",
@@ -1120,11 +1022,9 @@ const styles = StyleSheet.create({
     borderColor: "rgba(45,212,191,0.24)",
     marginBottom: 10,
   },
-
   planTileWide: {
     width: "100%",
   },
-
   planTileTitle: {
     color: COLORS.green,
     fontSize: 13,
@@ -1133,13 +1033,11 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
     marginBottom: 8,
   },
-
   planTileText: {
     color: "#dcfce7",
     fontSize: 14,
     lineHeight: 21,
   },
-
   emptyPlan: {
     backgroundColor: "rgba(0,0,0,0.2)",
     borderRadius: 20,
@@ -1147,14 +1045,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(45,212,191,0.24)",
   },
-
   emptyTitle: {
     color: COLORS.text,
     fontSize: 20,
     fontWeight: "900",
     marginBottom: 8,
   },
-
   emptyText: {
     color: "#a7f3d0",
     fontSize: 15,
