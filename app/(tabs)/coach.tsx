@@ -21,8 +21,16 @@ import { supabase } from "../../lib/supabase";
 
 const COACH_PASSCODE = "1010";
 
+type Athlete = {
+  id: string;
+  player_name: string;
+  access_code?: string;
+  status?: string;
+};
+
 type CheckIn = {
   id?: string;
+  athlete_id?: string;
   player_name: string;
   position?: string;
   score?: number;
@@ -37,6 +45,7 @@ type CheckIn = {
 
 type CoachNote = {
   id?: string;
+  athlete_id?: string;
   player_name: string;
   note: string;
   focus_area?: string;
@@ -45,6 +54,7 @@ type CoachNote = {
 
 type JournalEntry = {
   id?: string;
+  athlete_id?: string;
   player_name: string;
   answers?: Record<string, string>;
   created_at?: string;
@@ -52,6 +62,7 @@ type JournalEntry = {
 
 type WeeklyReport = {
   id?: string;
+  athlete_id?: string;
   player_name: string;
   readiness_avg?: number;
   soreness_avg?: number;
@@ -78,6 +89,7 @@ export default function CoachScreen() {
   const [passcode, setPasscode] = useState("");
   const [unlocked, setUnlocked] = useState(false);
 
+  const [athletes, setAthletes] = useState<Athlete[]>([]);
   const [checkIns, setCheckIns] = useState<CheckIn[]>([]);
   const [coachNotes, setCoachNotes] = useState<CoachNote[]>([]);
   const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
@@ -103,18 +115,22 @@ export default function CoachScreen() {
   const loadDashboard = async () => {
     setLoading(true);
 
-    const [checkInsRes, notesRes, journalRes, reportsRes] = await Promise.all([
-      supabase.from("check_ins").select("*").order("created_at", { ascending: false }),
-      supabase.from("coach_notes").select("*").order("created_at", { ascending: false }),
-      supabase.from("journal_entries").select("*").order("created_at", { ascending: false }),
-      supabase.from("weekly_reports").select("*").order("created_at", { ascending: false }),
-    ]);
+    const [athletesRes, checkInsRes, notesRes, journalRes, reportsRes] =
+      await Promise.all([
+        supabase.from("athletes").select("*").order("player_name", { ascending: true }),
+        supabase.from("check_ins").select("*").order("created_at", { ascending: false }),
+        supabase.from("coach_notes").select("*").order("created_at", { ascending: false }),
+        supabase.from("journal_entries").select("*").order("created_at", { ascending: false }),
+        supabase.from("weekly_reports").select("*").order("created_at", { ascending: false }),
+      ]);
 
+    if (athletesRes.error) console.log("athletes error:", athletesRes.error.message);
     if (checkInsRes.error) console.log("check_ins error:", checkInsRes.error.message);
     if (notesRes.error) console.log("coach_notes error:", notesRes.error.message);
     if (journalRes.error) console.log("journal_entries error:", journalRes.error.message);
     if (reportsRes.error) console.log("weekly_reports error:", reportsRes.error.message);
 
+    setAthletes(athletesRes.data || []);
     setCheckIns(checkInsRes.data || []);
     setCoachNotes(notesRes.data || []);
     setJournalEntries(journalRes.data || []);
@@ -134,33 +150,39 @@ export default function CoachScreen() {
   const athleteNames = useMemo(() => {
     const names = new Set<string>();
 
+    athletes.forEach((item) => item.player_name && names.add(item.player_name));
     checkIns.forEach((item) => item.player_name && names.add(item.player_name));
     coachNotes.forEach((item) => item.player_name && names.add(item.player_name));
     journalEntries.forEach((item) => item.player_name && names.add(item.player_name));
     weeklyReports.forEach((item) => item.player_name && names.add(item.player_name));
 
     return ["All", ...Array.from(names).sort()];
-  }, [checkIns, coachNotes, journalEntries, weeklyReports]);
+  }, [athletes, checkIns, coachNotes, journalEntries, weeklyReports]);
 
-  const visibleCheckIns =
-    selectedAthlete === "All"
-      ? checkIns
-      : checkIns.filter((item) => item.player_name === selectedAthlete);
+  const selectedAthleteRecord = athletes.find(
+    (athlete) => athlete.player_name === selectedAthlete
+  );
 
-  const visibleNotes =
-    selectedAthlete === "All"
-      ? coachNotes
-      : coachNotes.filter((item) => item.player_name === selectedAthlete);
+  const filterByAthlete = <T extends { athlete_id?: string; player_name: string }>(
+    items: T[]
+  ) => {
+    if (selectedAthlete === "All") return items;
 
-  const visibleJournals =
-    selectedAthlete === "All"
-      ? journalEntries
-      : journalEntries.filter((item) => item.player_name === selectedAthlete);
+    if (selectedAthleteRecord?.id) {
+      return items.filter(
+        (item) =>
+          item.athlete_id === selectedAthleteRecord.id ||
+          item.player_name === selectedAthlete
+      );
+    }
 
-  const visibleReports =
-    selectedAthlete === "All"
-      ? weeklyReports
-      : weeklyReports.filter((item) => item.player_name === selectedAthlete);
+    return items.filter((item) => item.player_name === selectedAthlete);
+  };
+
+  const visibleCheckIns = filterByAthlete(checkIns);
+  const visibleNotes = filterByAthlete(coachNotes);
+  const visibleJournals = filterByAthlete(journalEntries);
+  const visibleReports = filterByAthlete(weeklyReports);
 
   const averageScore =
     visibleCheckIns.length > 0
@@ -200,8 +222,13 @@ export default function CoachScreen() {
       return;
     }
 
+    const athlete = athletes.find(
+      (item) => item.player_name === selectedAthlete
+    );
+
     const { error } = await supabase.from("coach_notes").insert([
       {
+        athlete_id: athlete?.id,
         player_name: selectedAthlete,
         note: noteText.trim(),
         focus_area: focusArea.trim(),
@@ -338,9 +365,7 @@ export default function CoachScreen() {
                 <Text style={styles.itemText}>
                   Readiness: {item.readiness_label || "N/A"}
                 </Text>
-                <Text style={styles.itemText}>
-                  Risk: {item.risk_text || "N/A"}
-                </Text>
+                <Text style={styles.itemText}>Risk: {item.risk_text || "N/A"}</Text>
                 <Text style={styles.itemText}>
                   Soreness: {item.soreness ?? "N/A"} | Stress:{" "}
                   {item.stress ?? "N/A"} | Confidence:{" "}
