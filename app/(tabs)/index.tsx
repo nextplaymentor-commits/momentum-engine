@@ -84,6 +84,19 @@ function getDefaultMetrics(): MetricState {
   };
 }
 
+function getStatusColor(score: number) {
+  if (score >= 80) return "#22c55e";
+  if (score >= 60) return "#fbbf24";
+  return "#ef4444";
+}
+
+function getMissionTitle(score: number, dayType: DayType) {
+  if (score < 60) return "Recover Smart";
+  if (dayType === "Match") return "Lock In";
+  if (dayType === "Off") return "Reset Day";
+  return "Train With Purpose";
+}
+
 function calculatePlan(
   playerName: string,
   position: Position,
@@ -138,99 +151,93 @@ function calculatePlan(
   const priorityActions: string[] = [];
 
   if (metrics.soreness >= 7) {
-    priorityActions.push(
-      "Soreness: Keep the load low. Mobility, hydration, and no extra impact today."
-    );
+    priorityActions.push("Keep load low today. Mobility, hydration, and no extra impact.");
   }
 
   if (metrics.stress >= 7) {
-    priorityActions.push(
-      "Stress: Slow the day down. Breathe, reset, and keep training simple."
-    );
+    priorityActions.push("Slow the day down. Breathe, reset, and keep training simple.");
   }
 
   if (metrics.sleep <= 6) {
-    priorityActions.push("Sleep: Protect recovery tonight. No extra work late.");
+    priorityActions.push("Protect recovery tonight. No extra work late.");
   }
 
   if (metrics.nutrition <= 5) {
-    priorityActions.push(
-      "Nutrition: Eat a real meal today. Protein, carbs, fruit, and water."
-    );
+    priorityActions.push("Eat a real meal: protein, carbs, fruit, and water.");
   }
 
   if (metrics.confidence <= 5) {
-    priorityActions.push("Confidence: Focus on one small win early.");
+    priorityActions.push("Focus on one small win early.");
   }
 
   const positionFocus: Record<Position, string> = {
     Striker:
-      "Striker Focus: 20 finishing reps — 10 one-touch, 5 across goal, 5 near-post. Add 5 checking runs and 5 runs behind.",
+      "20 finishing reps: 10 one-touch, 5 across goal, 5 near-post. Add checking runs and runs behind.",
     Winger:
-      "Winger Focus: 10 1v1 moves, 10 crosses, 10 cut-inside shots, and 6 recovery runs.",
+      "10 1v1 moves, 10 crosses, 10 cut-inside shots, and 6 recovery runs.",
     Midfielder:
-      "Midfielder Focus: 30 scanning reps, 20 wall passes, 10 half-turn receives, and 10 switches of play.",
+      "30 scanning reps, 20 wall passes, 10 half-turn receives, and 10 switches of play.",
     Defender:
-      "Defender Focus: 15 body-shape reps, 10 clearances, 10 1v1 defending reps, and 10 communication commands.",
+      "15 body-shape reps, 10 clearances, 10 1v1 defending reps, and 10 communication commands.",
     Goalkeeper:
-      "Goalkeeper Focus: 20 catches, 15 footwork reps, 10 distribution passes, and 10 set-position reactions.",
+      "20 catches, 15 footwork reps, 10 distribution passes, and 10 set-position reactions.",
   };
 
   const dayPlan =
     dayType === "Match"
-      ? "Match Day: arrive early, visualize your first 3 actions, play simple for the first 5 minutes, communicate early, and win your first duel."
+      ? "Arrive early, visualize your first 3 actions, play simple early, communicate, and win your first duel."
       : dayType === "Training"
-      ? "Training Day: focus on quality reps, strong habits, clean technique, communication, and one position-specific detail."
-      : "Off Day: no hard training. Walk 15–20 minutes, stretch, hydrate, eat well, and mentally reset.";
+      ? "Focus on quality reps, clean technique, communication, and one position-specific detail."
+      : "No hard training. Walk 15–20 minutes, stretch, hydrate, eat well, and mentally reset.";
 
   const loadPlan =
     trainingLoad === "Full"
-      ? "Full Load: warm up properly, complete your main training block, push intensity, then cool down."
+      ? "Full load: warm up well, push intensity, then cool down."
       : trainingLoad === "Light"
-      ? "Light Load: keep it technical. Ball touches, passing, mobility, light movement, and no extra conditioning."
-      : "No Load: recovery only. Stretch, walk, hydrate, and prepare for the next session.";
+      ? "Light load: technical touches, passing, mobility, and no extra conditioning."
+      : "No load: recovery only. Stretch, walk, hydrate, and prepare for the next session.";
 
-  let trainingPlan = `${positionFocus[position]} ${dayPlan} ${loadPlan}`;
+  let trainingPlan = `${positionFocus[position]}\n\n${dayPlan}\n\n${loadPlan}`;
 
   if (dayType === "Off") {
-    trainingPlan = `${dayPlan} ${loadPlan} Optional ball work only: 5 minutes juggling or light wall passes. Nothing intense.`;
+    trainingPlan = `${dayPlan}\n\n${loadPlan}\n\nOptional: 5 minutes of juggling or light wall passes only. Nothing intense.`;
   }
 
   let fuelPlan =
     dayType === "Match"
-      ? "Breakfast: oatmeal + banana + eggs + water.\n\n2–3 hours before: chicken/rice, pasta with lean meat, or turkey sandwich + fruit.\n\n60 minutes before: banana, granola bar, or yogurt.\n\nAfter: protein + carbs within 45 minutes — chicken/rice, eggs/toast, smoothie, or chocolate milk.\n\nHydration: drink 24–32 oz before noon and add electrolytes after the match."
+      ? "Breakfast: oatmeal + banana + eggs + water.\n\n2–3 hours before: chicken/rice, pasta with lean meat, or turkey sandwich + fruit.\n\n60 minutes before: banana, granola bar, or yogurt.\n\nAfter: protein + carbs within 45 minutes."
       : dayType === "Training"
-      ? "Before training: banana, toast with peanut butter, oatmeal, or rice + eggs.\n\nAfter training: protein + carbs within 30–45 minutes — chicken/rice, pasta/meat sauce, eggs/potatoes, or Greek yogurt + fruit.\n\nHydration: drink 24 oz before noon and 12–16 oz after training."
-      : "Breakfast: eggs + oatmeal or toast + fruit.\n\nLunch: chicken/rice/vegetables or turkey sandwich + fruit.\n\nSnack: Greek yogurt, banana, trail mix, or smoothie.\n\nDinner: protein + carbs + vegetables. Keep meals clean and do not skip food.\n\nHydration: aim for 60–70 oz today.";
+      ? "Before training: banana, toast with peanut butter, oatmeal, or rice + eggs.\n\nAfter training: protein + carbs within 30–45 minutes.\n\nHydration: drink 24 oz before noon and 12–16 oz after training."
+      : "Breakfast: eggs + oatmeal or toast + fruit.\n\nLunch: chicken/rice/vegetables or turkey sandwich + fruit.\n\nSnack: Greek yogurt, banana, trail mix, or smoothie.\n\nHydration: aim for 60–70 oz today.";
 
   if (metrics.nutrition <= 5) {
     fuelPlan =
-      "Nutrition Fix Today:\n\nMeal 1: eggs or chicken + rice, toast, potatoes, or oatmeal.\n\nSnack: banana, yogurt, fruit, or granola bar.\n\nMeal 2: protein + carbs again.\n\nGoal: do not skip carbs. Your body needs fuel to recover and perform.\n\nHydration: finish 20–24 oz before lunch.";
+      "Nutrition Fix Today:\n\n1. Eat protein + carbs early.\n2. Do not skip carbs.\n3. Add fruit or yogurt as a snack.\n4. Finish 20–24 oz water before lunch.";
   }
 
   let recoveryPlan =
     dayType === "Match"
-      ? "After match:\n\n1. Walk or light jog 5 minutes.\n2. Stretch hips, calves, hamstrings, and quads for 10 minutes.\n3. Drink 16–20 oz water/electrolytes within 30 minutes.\n4. Eat protein + carbs within 45 minutes.\n5. Sleep goal: 8+ hours."
+      ? "1. Walk or light jog 5 minutes.\n2. Stretch hips, calves, hamstrings, and quads.\n3. Drink water/electrolytes.\n4. Eat protein + carbs within 45 minutes.\n5. Sleep goal: 8+ hours."
       : dayType === "Training"
-      ? "After training:\n\n1. Cooldown walk 5 minutes.\n2. Stretch sore areas for 10 minutes.\n3. Drink 12–16 oz water after training.\n4. Eat a recovery meal within 30–45 minutes.\n5. No extra hard work if legs feel heavy."
-      : "Off day recovery:\n\n1. Walk 15–20 minutes.\n2. Stretch hips, calves, hamstrings, and quads for 10 minutes.\n3. Hydrate throughout the day.\n4. Light mobility only.\n5. Sleep goal: 8+ hours.";
+      ? "1. Cooldown walk 5 minutes.\n2. Stretch sore areas.\n3. Drink water after training.\n4. Eat recovery meal.\n5. No extra hard work if legs feel heavy."
+      : "1. Walk 15–20 minutes.\n2. Stretch hips, calves, hamstrings, and quads.\n3. Hydrate throughout the day.\n4. Light mobility only.\n5. Sleep goal: 8+ hours.";
 
   if (metrics.soreness >= 7) {
     recoveryPlan =
-      "High soreness recovery:\n\n1. No extra sprinting or jumping.\n2. Stretch/mobility for 12–15 minutes.\n3. Drink 24 oz before noon and add electrolytes after training.\n4. Eat protein + carbs.\n5. Sleep early and keep the next session controlled.";
+      "High soreness recovery:\n\n1. No sprinting or jumping.\n2. Mobility 12–15 minutes.\n3. Hydrate early.\n4. Eat protein + carbs.\n5. Sleep early.";
   }
 
   if (metrics.stress >= 7) {
     recoveryPlan =
-      "High stress recovery:\n\n1. Keep training simple today.\n2. Take 5 slow breaths before starting.\n3. Walk 10–15 minutes.\n4. Stretch 10 minutes.\n5. Put the phone down early and protect sleep.";
+      "High stress recovery:\n\n1. Keep training simple.\n2. Take 5 slow breaths before starting.\n3. Walk 10–15 minutes.\n4. Stretch 10 minutes.\n5. Protect sleep.";
   }
 
   let mindsetPlan =
     dayType === "Match"
-      ? "Compete first, then settle in. Win your first action, communicate, and do not chase perfection."
+      ? "Compete first, then settle in. Win your first action and do not chase perfection."
       : dayType === "Training"
       ? "Train with purpose. Pick one detail and attack it the whole session."
-      : "Recovery is work too. Use today to reset your body and clear your mind.";
+      : "Recovery is work too. Reset your body and clear your mind.";
 
   if (metrics.confidence <= 5) {
     mindsetPlan =
@@ -240,7 +247,7 @@ function calculatePlan(
   let coachFeedback = `${name}, follow the plan for your ${dayType.toLowerCase()} day.`;
 
   if (dayType === "Off") {
-    coachFeedback = `${name}, today is not about doing more. It is about recovering right so you can come back sharper.`;
+    coachFeedback = `${name}, today is not about doing more. Recover right so you can come back sharper.`;
   } else if (dayType === "Match") {
     coachFeedback = `${name}, today is game day. Keep it simple early, compete, and trust your work.`;
   } else if (dayType === "Training") {
@@ -248,7 +255,7 @@ function calculatePlan(
   }
 
   if (score < 60) {
-    coachFeedback = `${name}, your readiness is low today. Be smart with your body and prioritize recovery.`;
+    coachFeedback = `${name}, readiness is low today. Be smart with your body and prioritize recovery.`;
   }
 
   const smartRecommendations = getMomentumRecommendations({
@@ -360,6 +367,23 @@ function PlanTile({
   );
 }
 
+function PriorityCard({
+  number,
+  text,
+}: {
+  number: number;
+  text: string;
+}) {
+  return (
+    <View style={styles.priorityCard}>
+      <View style={styles.priorityBadge}>
+        <Text style={styles.priorityBadgeText}>{number}</Text>
+      </View>
+      <Text style={styles.priorityText}>{text}</Text>
+    </View>
+  );
+}
+
 export default function HomeScreen() {
   const [accessCode, setAccessCode] = useState("");
   const [activeAthlete, setActiveAthlete] = useState<AthleteAccess | null>(null);
@@ -448,6 +472,20 @@ export default function HomeScreen() {
   }, [playerName, position, dayType, trainingLoad, metrics]);
 
   const plan = hasChecked ? livePlan : null;
+  const scoreColor = plan ? getStatusColor(plan.score) : COLORS.blue;
+  const missionTitle = plan ? getMissionTitle(plan.score, dayType) : "Daily Check-In";
+
+  const topPriorities = plan
+    ? [
+        plan.priorityActions[0] || "Hydrate early.",
+        plan.priorityActions[1] || "Eat protein with each meal.",
+        plan.priorityActions[2] || "Complete your recovery routine.",
+      ]
+    : [
+        "Set your day type.",
+        "Adjust your readiness numbers.",
+        "Tap Check Readiness.",
+      ];
 
   const updateMetric = (key: keyof MetricState, change: number) => {
     setMetrics((prev) => ({
@@ -575,86 +613,97 @@ export default function HomeScreen() {
           </TouchableOpacity>
         </View>
 
-        <View style={styles.readinessCard}>
-          <View style={styles.readinessLeft}>
-            <Text style={styles.readinessLabel}>Today’s Readiness</Text>
-            <Text style={styles.readinessTitle}>
-              {plan ? plan.readinessLabel : "Not Checked Yet"}
-            </Text>
-            <Text style={styles.readinessSub}>
-              {plan
-                ? `${plan.riskText} — follow today’s plan.`
-                : "Start at 5. Adjust your check-in, then tap Check Readiness."}
+        <View style={[styles.missionCard, { borderColor: scoreColor }]}>
+          <View style={styles.missionTopRow}>
+            <View>
+              <Text style={styles.missionLabel}>TODAY'S MISSION</Text>
+              <Text style={styles.missionTitle}>{missionTitle}</Text>
+              <Text style={styles.missionSub}>
+                {plan
+                  ? `${position} • ${dayType} Day • ${trainingLoad} Load`
+                  : "Complete your check-in to unlock your plan."}
+              </Text>
+            </View>
+
+            <View style={[styles.scoreCircle, { borderColor: scoreColor }]}>
+              <Text style={styles.scoreText}>{plan ? plan.score : 0}</Text>
+              <Text style={styles.scoreLabel}>SCORE</Text>
+            </View>
+          </View>
+
+          <View style={[styles.statusPill, { backgroundColor: scoreColor }]}>
+            <Text style={styles.statusPillText}>
+              {plan ? `${plan.readinessLabel} • ${plan.riskText}` : "NOT CHECKED YET"}
             </Text>
           </View>
 
-          <View style={styles.scoreCircle}>
-            <Text style={styles.scoreText}>{plan ? plan.score : 0}</Text>
+          <Text style={styles.coachBrief}>
+            {plan
+              ? plan.coachFeedback
+              : "Start at 5, adjust how you feel, then tap Check Readiness."}
+          </Text>
+        </View>
+
+        <View style={styles.quickCard}>
+          <Text style={styles.cardTitle}>Player Setup</Text>
+
+          <View style={styles.lockedPlayerBox}>
+            <Text style={styles.lockedPlayerLabel}>Logged in as</Text>
+            <Text style={styles.lockedPlayerName}>{playerName}</Text>
+          </View>
+
+          <Text style={styles.label}>Position</Text>
+          <View style={styles.chipWrap}>
+            {(["Striker", "Winger", "Midfielder", "Defender", "Goalkeeper"] as Position[]).map(
+              (item) => (
+                <Chip
+                  key={item}
+                  label={item}
+                  selected={position === item}
+                  onPress={() => setPosition(item)}
+                />
+              )
+            )}
+          </View>
+
+          <Text style={styles.label}>Day</Text>
+          <View style={styles.chipWrap}>
+            {(["Training", "Match", "Off"] as DayType[]).map((item) => (
+              <Chip
+                key={item}
+                label={item}
+                selected={dayType === item}
+                onPress={() => setDayType(item)}
+                color={item === "Match" ? COLORS.yellow : COLORS.green}
+              />
+            ))}
+          </View>
+
+          <Text style={styles.label}>Load</Text>
+          <View style={styles.chipWrap}>
+            {(["None", "Light", "Full"] as TrainingLoad[]).map((item) => (
+              <Chip
+                key={item}
+                label={item}
+                selected={trainingLoad === item}
+                onPress={() => setTrainingLoad(item)}
+                color={item === "Full" ? COLORS.yellow : COLORS.green}
+              />
+            ))}
           </View>
         </View>
 
-        <View style={styles.controlPanel}>
-          <View style={styles.setupColumn}>
-            <Text style={styles.cardTitle}>Player Setup</Text>
+        <View style={styles.quickCard}>
+          <Text style={styles.cardTitle}>Daily Check-In</Text>
 
-            <View style={styles.lockedPlayerBox}>
-              <Text style={styles.lockedPlayerLabel}>Logged in as</Text>
-              <Text style={styles.lockedPlayerName}>{playerName}</Text>
-            </View>
-
-            <Text style={styles.label}>Position</Text>
-            <View style={styles.chipWrap}>
-              {(["Striker", "Winger", "Midfielder", "Defender", "Goalkeeper"] as Position[]).map(
-                (item) => (
-                  <Chip
-                    key={item}
-                    label={item}
-                    selected={position === item}
-                    onPress={() => setPosition(item)}
-                  />
-                )
-              )}
-            </View>
-
-            <Text style={styles.label}>Day</Text>
-            <View style={styles.chipWrap}>
-              {(["Training", "Match", "Off"] as DayType[]).map((item) => (
-                <Chip
-                  key={item}
-                  label={item}
-                  selected={dayType === item}
-                  onPress={() => setDayType(item)}
-                  color={item === "Match" ? "#fbbf24" : "#2dd4bf"}
-                />
-              ))}
-            </View>
-
-            <Text style={styles.label}>Load</Text>
-            <View style={styles.chipWrap}>
-              {(["None", "Light", "Full"] as TrainingLoad[]).map((item) => (
-                <Chip
-                  key={item}
-                  label={item}
-                  selected={trainingLoad === item}
-                  onPress={() => setTrainingLoad(item)}
-                  color={item === "Full" ? "#fbbf24" : "#2dd4bf"}
-                />
-              ))}
-            </View>
-          </View>
-
-          <View style={styles.checkColumn}>
-            <Text style={styles.cardTitle}>Daily Check-In</Text>
-
-            <View style={styles.metricsGrid}>
-              <MetricBox label="Sleep" value={metrics.sleep} onMinus={() => updateMetric("sleep", -1)} onPlus={() => updateMetric("sleep", 1)} />
-              <MetricBox label="Energy" value={metrics.energy} onMinus={() => updateMetric("energy", -1)} onPlus={() => updateMetric("energy", 1)} />
-              <MetricBox label="Focus" value={metrics.focus} onMinus={() => updateMetric("focus", -1)} onPlus={() => updateMetric("focus", 1)} />
-              <MetricBox label="Nutrition" value={metrics.nutrition} onMinus={() => updateMetric("nutrition", -1)} onPlus={() => updateMetric("nutrition", 1)} />
-              <MetricBox label="Confidence" value={metrics.confidence} onMinus={() => updateMetric("confidence", -1)} onPlus={() => updateMetric("confidence", 1)} />
-              <MetricBox label="Stress" value={metrics.stress} onMinus={() => updateMetric("stress", -1)} onPlus={() => updateMetric("stress", 1)} />
-              <MetricBox label="Soreness" value={metrics.soreness} onMinus={() => updateMetric("soreness", -1)} onPlus={() => updateMetric("soreness", 1)} />
-            </View>
+          <View style={styles.metricsGrid}>
+            <MetricBox label="Sleep" value={metrics.sleep} onMinus={() => updateMetric("sleep", -1)} onPlus={() => updateMetric("sleep", 1)} />
+            <MetricBox label="Energy" value={metrics.energy} onMinus={() => updateMetric("energy", -1)} onPlus={() => updateMetric("energy", 1)} />
+            <MetricBox label="Focus" value={metrics.focus} onMinus={() => updateMetric("focus", -1)} onPlus={() => updateMetric("focus", 1)} />
+            <MetricBox label="Nutrition" value={metrics.nutrition} onMinus={() => updateMetric("nutrition", -1)} onPlus={() => updateMetric("nutrition", 1)} />
+            <MetricBox label="Confidence" value={metrics.confidence} onMinus={() => updateMetric("confidence", -1)} onPlus={() => updateMetric("confidence", 1)} />
+            <MetricBox label="Stress" value={metrics.stress} onMinus={() => updateMetric("stress", -1)} onPlus={() => updateMetric("stress", 1)} />
+            <MetricBox label="Soreness" value={metrics.soreness} onMinus={() => updateMetric("soreness", -1)} onPlus={() => updateMetric("soreness", 1)} />
           </View>
         </View>
 
@@ -674,32 +723,41 @@ export default function HomeScreen() {
 
         <View style={styles.planBoard}>
           <View style={styles.planBoardHeader}>
-            <Text style={styles.planBoardTitle}>Today’s Plan Board</Text>
+            <Text style={styles.planBoardTitle}>Today’s Plan</Text>
             <Text style={styles.planBoardSub}>
               {plan
-                ? `Built for ${position} • ${dayType} Day • ${trainingLoad} Load`
-                : "Plan is locked until you check readiness."}
+                ? "Built around your check-in and today’s load."
+                : "Your plan unlocks after your readiness check."}
             </Text>
+          </View>
+
+          <View style={styles.prioritySection}>
+            <Text style={styles.sectionTitle}>Top Priorities</Text>
+            {topPriorities.map((item, index) => (
+              <PriorityCard key={`${item}-${index}`} number={index + 1} text={item} />
+            ))}
           </View>
 
           {plan ? (
             <View style={styles.planGrid}>
-              <PlanTile wide title="Coach Note" text={plan.coachFeedback} />
-              <PlanTile title="Priority 1" text={plan.priorityActions[0] || "Stay locked in today."} />
-              <PlanTile title="Priority 2" text={plan.priorityActions[1] || "Control what you can control."} />
-              <PlanTile title="Priority 3" text={plan.priorityActions[2] || "Keep your habits sharp."} />
-              <PlanTile title="Priority 4" text={plan.priorityActions[3] || "Finish the day strong."} />
-              <PlanTile wide title="Smart Recommendations" text={plan.priorityActions.slice(4).join("\n\n") || "No extra recommendations today."} />
-              <PlanTile wide title="Training / Day Plan" text={plan.trainingPlan} />
+              <PlanTile wide title="Training" text={plan.trainingPlan} />
               <PlanTile wide title="Fuel" text={plan.fuelPlan} />
               <PlanTile wide title="Recovery" text={plan.recoveryPlan} />
               <PlanTile wide title="Mindset" text={plan.mindsetPlan} />
+              <PlanTile
+                wide
+                title="Extra Recommendations"
+                text={
+                  plan.priorityActions.slice(3).join("\n\n") ||
+                  "No extra recommendations today. Stay consistent."
+                }
+              />
             </View>
           ) : (
             <View style={styles.emptyPlan}>
               <Text style={styles.emptyTitle}>No plan yet</Text>
               <Text style={styles.emptyText}>
-                Set the day, load, and check-in scores. Then tap Check Readiness.
+                Set your day, load, and check-in scores. Then tap Check Readiness.
               </Text>
             </View>
           )}
@@ -719,6 +777,7 @@ const COLORS = {
   blue: "#2563eb",
   green: "#2dd4bf",
   yellow: "#fbbf24",
+  red: "#ef4444",
 };
 
 const styles = StyleSheet.create({
@@ -805,66 +864,87 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     fontSize: 13,
   },
-  readinessCard: {
-    backgroundColor: COLORS.blue,
-    borderRadius: 30,
+  missionCard: {
+    backgroundColor: COLORS.card,
+    borderRadius: 32,
     padding: 22,
     marginBottom: 16,
-    minHeight: 150,
+    borderWidth: 2,
+  },
+  missionTopRow: {
     flexDirection: "row",
-    alignItems: "center",
     justifyContent: "space-between",
+    alignItems: "center",
   },
-  readinessLeft: {
-    flex: 1,
-    paddingRight: 14,
-  },
-  readinessLabel: {
-    color: "#dbeafe",
-    fontSize: 14,
-    fontWeight: "800",
+  missionLabel: {
+    color: COLORS.green,
+    fontSize: 12,
+    fontWeight: "900",
+    letterSpacing: 2,
     marginBottom: 8,
   },
-  readinessTitle: {
+  missionTitle: {
     color: COLORS.text,
-    fontSize: 27,
+    fontSize: 36,
     fontWeight: "900",
-    lineHeight: 31,
+    letterSpacing: -1,
   },
-  readinessSub: {
-    color: "#dbeafe",
+  missionSub: {
+    color: COLORS.muted,
     fontSize: 14,
-    marginTop: 8,
-    lineHeight: 20,
+    marginTop: 6,
+    fontWeight: "700",
   },
   scoreCircle: {
-    width: 104,
-    height: 104,
-    borderRadius: 52,
-    backgroundColor: "rgba(255,255,255,0.16)",
+    width: 108,
+    height: 108,
+    borderRadius: 54,
+    borderWidth: 4,
     alignItems: "center",
     justifyContent: "center",
+    backgroundColor: "#061322",
   },
   scoreText: {
     color: COLORS.text,
-    fontSize: 42,
+    fontSize: 38,
     fontWeight: "900",
   },
-  controlPanel: {
+  scoreLabel: {
+    color: COLORS.muted,
+    fontSize: 10,
+    fontWeight: "900",
+    letterSpacing: 1,
+  },
+  statusPill: {
+    alignSelf: "flex-start",
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    marginTop: 16,
+    marginBottom: 12,
+  },
+  statusPillText: {
+    color: "#03111d",
+    fontSize: 12,
+    fontWeight: "900",
+  },
+  coachBrief: {
+    color: COLORS.text,
+    fontSize: 16,
+    lineHeight: 23,
+    fontWeight: "700",
+  },
+  quickCard: {
     backgroundColor: COLORS.card,
     borderRadius: 28,
     borderWidth: 1,
     borderColor: COLORS.border,
-    padding: 16,
+    padding: 18,
     marginBottom: 14,
   },
-  setupColumn: {
-    marginBottom: 18,
-  },
-  checkColumn: {},
   cardTitle: {
     color: COLORS.text,
-    fontSize: 21,
+    fontSize: 22,
     fontWeight: "900",
     marginBottom: 14,
   },
@@ -999,7 +1079,7 @@ const styles = StyleSheet.create({
   },
   planBoardTitle: {
     color: COLORS.text,
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: "900",
   },
   planBoardSub: {
@@ -1007,6 +1087,47 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginTop: 5,
     lineHeight: 20,
+  },
+  prioritySection: {
+    marginBottom: 12,
+  },
+  sectionTitle: {
+    color: COLORS.green,
+    fontSize: 14,
+    fontWeight: "900",
+    letterSpacing: 1,
+    textTransform: "uppercase",
+    marginBottom: 10,
+  },
+  priorityCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(0,0,0,0.2)",
+    borderRadius: 18,
+    padding: 14,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: "rgba(45,212,191,0.24)",
+  },
+  priorityBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: COLORS.green,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+  },
+  priorityBadgeText: {
+    color: "#03111d",
+    fontWeight: "900",
+  },
+  priorityText: {
+    flex: 1,
+    color: "#dcfce7",
+    fontSize: 15,
+    lineHeight: 21,
+    fontWeight: "700",
   },
   planGrid: {
     flexDirection: "row",
