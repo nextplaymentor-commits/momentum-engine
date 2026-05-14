@@ -306,6 +306,19 @@ export default function ProgressScreen() {
 
   const trend = thisWeekAvg - lastWeekAvg;
 
+  const streakDays = (() => {
+  const uniqueDays = [
+    ...new Set(
+      thisWeekCheckIns.map((item) =>
+        new Date(item.created_at || "").toLocaleDateString("en-US", {
+          timeZone: "America/New_York",
+        })
+      )
+    ),
+  ];
+
+  return uniqueDays.length;
+})();
   const avgSleep =
     totalCheckIns > 0
       ? Math.round(
@@ -495,6 +508,10 @@ export default function ProgressScreen() {
             <Text style={styles.statLabel}>Last Week</Text>
           </View>
 
+<View style={styles.statCard}>
+  <Text style={styles.statNumber}>🔥 {streakDays}</Text>
+  <Text style={styles.statLabel}>Day Streak</Text>
+</View>
           <View style={styles.statCard}>
             <Text
               style={[
