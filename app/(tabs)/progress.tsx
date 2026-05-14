@@ -539,7 +539,7 @@ export default function ProgressScreen() {
     />
   </View>
 
-  <Text style={styles.bodyText}></Text>
+
           <Text style={styles.bodyText}>
             Check-Ins This Week: {thisWeekCheckIns.length}
           </Text>
