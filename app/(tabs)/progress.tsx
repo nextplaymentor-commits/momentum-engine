@@ -88,7 +88,36 @@ function getWeekDates() {
     weekEnd: weekEnd.toISOString().split("T")[0],
   };
 }
+function ProgressBar({
+  label,
+  value,
+  color,
+}: {
+  label: string;
+  value: number;
+  color: string;
+}) {
+  return (
+    <View style={styles.progressBarWrap}>
+      <View style={styles.progressBarTop}>
+        <Text style={styles.progressBarLabel}>{label}</Text>
+        <Text style={styles.progressBarValue}>{value}/10</Text>
+      </View>
 
+      <View style={styles.progressBarBackground}>
+        <View
+          style={[
+            styles.progressBarFill,
+            {
+              width: `${value * 10}%`,
+              backgroundColor: color,
+            },
+          ]}
+        />
+      </View>
+    </View>
+  );
+}
 export default function ProgressScreen() {
   const [accessCode, setAccessCode] = useState("");
   const [activeAthlete, setActiveAthlete] = useState<AthleteAccess | null>(null);
@@ -483,6 +512,34 @@ export default function ProgressScreen() {
         <View style={styles.card}>
           <Text style={styles.cardTitle}>{playerName}'s Weekly Report</Text>
 
+
+  <View style={styles.trendsSection}>
+    <ProgressBar
+      label="Readiness"
+      value={Math.round(thisWeekAvg / 10)}
+      color="#22c55e"
+    />
+
+    <ProgressBar
+      label="Confidence"
+      value={thisWeekConfidenceAvg}
+      color="#2dd4bf"
+    />
+
+    <ProgressBar
+      label="Soreness"
+      value={thisWeekSorenessAvg}
+      color="#fbbf24"
+    />
+
+    <ProgressBar
+      label="Stress"
+      value={avgStress}
+      color="#ef4444"
+    />
+  </View>
+
+  <Text style={styles.bodyText}></Text>
           <Text style={styles.bodyText}>
             Check-Ins This Week: {thisWeekCheckIns.length}
           </Text>
@@ -805,4 +862,42 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "900",
   },
+  progressBarWrap: {
+  marginBottom: 16,
+},
+
+progressBarTop: {
+  flexDirection: "row",
+  justifyContent: "space-between",
+  marginBottom: 6,
+},
+
+progressBarLabel: {
+  color: "#ffffff",
+  fontSize: 14,
+  fontWeight: "800",
+},
+
+progressBarValue: {
+  color: "#9fb0c8",
+  fontSize: 13,
+  fontWeight: "800",
+},
+
+progressBarBackground: {
+  width: "100%",
+  height: 12,
+  backgroundColor: "#12243d",
+  borderRadius: 999,
+  overflow: "hidden",
+},
+
+progressBarFill: {
+  height: "100%",
+  borderRadius: 999,
+},
+
+trendsSection: {
+  marginBottom: 20,
+},
 });
