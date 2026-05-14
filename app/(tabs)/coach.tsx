@@ -78,10 +78,13 @@ function formatDate(dateString?: string) {
   if (!dateString) return "Saved";
 
   return new Date(dateString).toLocaleString("en-US", {
+    timeZone: "America/New_York",
     month: "short",
     day: "numeric",
+    year: "numeric",
     hour: "numeric",
     minute: "2-digit",
+    hour12: true,
   });
 }
 
